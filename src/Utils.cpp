@@ -126,17 +126,18 @@ void copyFile(const string& from, const string& to)
 
 std::string system_get_output(const std::string& cmd)
 {
-    FILE * command_output;
+    FILE * command_output = nullptr;
     char output[128];
-    int amount_read = 1;
-    
+    int amount_read = 1,
+        return_value = 0;
+
     std::string full_output;
-    
+
     try
     {
         command_output = popen(cmd.c_str(), "r");
         if(command_output == NULL) throw;
-        
+
         while(amount_read > 0)
         {
             amount_read = fread(output, 1, 127, command_output);
@@ -151,13 +152,14 @@ std::string system_get_output(const std::string& cmd)
     catch(...)
     {
         std::cerr << "An error occured while executing command " << cmd.c_str() << std::endl;
-        pclose(command_output);
-        return "";
+        full_output = "";
     }
-    
-    int return_value = pclose(command_output);
-    if(return_value != 0) return "";
-    
+
+    if (command_output != nullptr)
+        return_value = pclose(command_output);
+    if (return_value != 0)
+        full_output = "";
+
     return full_output;
 }
 
