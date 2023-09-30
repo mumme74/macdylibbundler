@@ -36,6 +36,9 @@ class Dependency
     std::string prefix;
     std::vector<std::string> symlinks;
 
+    bool findFile(std::string &path, const std::string& dependent_file);
+
+
     // installation
     std::string new_name;
 public:

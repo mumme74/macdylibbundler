@@ -29,6 +29,7 @@ THE SOFTWARE.
 
 namespace Settings
 {
+void init();
 
 bool isSystemLibrary(const std::string& prefix);
 bool isPrefixBundled(const std::string& prefix);

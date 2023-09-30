@@ -331,8 +331,9 @@ void collectSubDependencies()
         dep_amount = deps.size();
         for (size_t n=0; n<dep_amount; n++)
         {
-            std::cout << "."; fflush(stdout);
             std::string original_path = deps[n].getOriginalPath();
+            Settings::verbose() ? std::cout << "* SubDependencies for: " + original_path << std::endl : std::cout << ".";
+            fflush(stdout);
             if (isRpath(original_path)) original_path = searchFilenameInRpaths(original_path);
 
             collectDependencies(original_path);

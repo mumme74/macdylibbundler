@@ -71,6 +71,7 @@ void showHelp()
 
 int main (int argc, char * const argv[])
 {
+    Settings::init();
 
     // parse arguments
     for(int i=0; i<argc; i++)

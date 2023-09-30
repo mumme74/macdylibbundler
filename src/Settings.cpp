@@ -24,9 +24,46 @@ THE SOFTWARE.
 
 #include "Settings.h"
 #include <vector>
+#include <sstream>
+
+//initialize the dylib search paths
+void initSearchPaths(){
+    //Check the same paths the system would search for dylibs
+    std::string searchPaths;
+    char *dyldLibPath = std::getenv("DYLD_LIBRARY_PATH");
+    if (dyldLibPath != nullptr)
+        searchPaths = dyldLibPath;
+    dyldLibPath = std::getenv("DYLD_FALLBACK_FRAMEWORK_PATH");
+    if (dyldLibPath != nullptr)
+    {
+        if (!searchPaths.empty() && searchPaths[ searchPaths.size()-1 ] != ':') searchPaths += ":";
+        searchPaths += dyldLibPath;
+    }
+    dyldLibPath = std::getenv("DYLD_FALLBACK_LIBRARY_PATH");
+    if (dyldLibPath != nullptr)
+    {
+        if (!searchPaths.empty() && searchPaths[ searchPaths.size()-1 ] != ':') searchPaths += ":";
+        searchPaths += dyldLibPath;
+    }
+    if (!searchPaths.empty())
+    {
+        std::stringstream ss(searchPaths);
+        std::string item;
+        while(std::getline(ss, item, ':'))
+        {
+            if (item[ item.size()-1 ] != '/') item += "/";
+            Settings::addSearchPath(item);
+        }
+    }
+}
+
 
 namespace Settings
 {
+
+void init() {
+    initSearchPaths();
+}
 
 bool overwrite_files = false;
 bool overwrite_dir = false;
@@ -114,7 +151,12 @@ bool isPrefixBundled(const std::string& prefix)
 }
 
 std::vector<std::string> searchPaths;
-void addSearchPath(const std::string& path){ searchPaths.push_back(path); }
+void addSearchPath(const std::string& path){
+  if( path[path.size() - 1] != '/' )
+    searchPaths.push_back(path + "/");
+  else
+    searchPaths.push_back(path);
+}
 int searchPathAmount(){ return searchPaths.size(); }
 std::string searchPath(const int n){ return searchPaths[n]; }
 

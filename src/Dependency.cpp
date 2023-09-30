@@ -49,42 +49,18 @@ std::string& rtrim(std::string &s) {
     return s;
 }
 
-//initialize the dylib search paths
-void initSearchPaths(){
-    //Check the same paths the system would search for dylibs
-    std::string searchPaths;
-    char *dyldLibPath = std::getenv("DYLD_LIBRARY_PATH");
-    if (dyldLibPath != nullptr)
-        searchPaths = dyldLibPath;
-    dyldLibPath = std::getenv("DYLD_FALLBACK_FRAMEWORK_PATH");
-    if (dyldLibPath != nullptr)
-    {
-        if (!searchPaths.empty() && searchPaths[ searchPaths.size()-1 ] != ':') searchPaths += ":";
-        searchPaths += dyldLibPath;
-    }
-    dyldLibPath = std::getenv("DYLD_FALLBACK_LIBRARY_PATH");
-    if (dyldLibPath != nullptr)
-    {
-        if (!searchPaths.empty() && searchPaths[ searchPaths.size()-1 ] != ':') searchPaths += ":";
-        searchPaths += dyldLibPath;
-    }
-    if (!searchPaths.empty())
-    {
-        std::stringstream ss(searchPaths);
-        std::string item;
-        while(std::getline(ss, item, ':'))
-        {
-            if (item[ item.size()-1 ] != '/') item += "/";
-            Settings::addSearchPath(item);
-        }
-    }
-}
-
 // if some libs are missing prefixes, this will be set to true
 // more stuff will then be necessary to do
 bool missing_prefixes = false;
 
 Dependency::Dependency(std::string path, const std::string& dependent_file)
+{
+    if (!findFile(path, dependent_file))
+        std::cerr << "\n/!\\ WARNING : Cannot resolve path '" << path.c_str() << "'" << std::endl;
+}
+
+// a sepaate method to be able to recursively find the string
+bool Dependency::findFile(std::string &path, const std::string& dependent_file)
 {
     char original_file_buffer[PATH_MAX];
     std::string original_file;
@@ -100,7 +76,6 @@ Dependency::Dependency(std::string path, const std::string& dependent_file)
     }
     else
     {
-        std::cerr << "\n/!\\ WARNING : Cannot resolve path '" << path.c_str() << "'" << std::endl;
         original_file = path;
     }
 
@@ -113,18 +88,13 @@ Dependency::Dependency(std::string path, const std::string& dependent_file)
     if( !prefix.empty() && prefix[ prefix.size()-1 ] != '/' ) prefix += "/";
 
     // check if this dependency is in /usr/lib, /System/Library, or in ignored list
-    if (!Settings::isPrefixBundled(prefix)) return;
+    if (!Settings::isPrefixBundled(prefix)) return true;
 
     // check if the lib is in a known location
     if( prefix.empty() || !fileExists( prefix+filename ) )
     {
         //the paths contains at least /usr/lib so if it is empty we have not initialized it
         int searchPathAmount = Settings::searchPathAmount();
-        if( searchPathAmount == 0 )
-        {
-            initSearchPaths();
-            searchPathAmount = Settings::searchPathAmount();
-        }
 
         //check if file is contained in one of the paths
         for( int i=0; i<searchPathAmount; ++i)
@@ -132,7 +102,8 @@ Dependency::Dependency(std::string path, const std::string& dependent_file)
             std::string search_path = Settings::searchPath(i);
             if (fileExists( search_path+filename ))
             {
-                std::cout << "FOUND " << filename << " in " << search_path << std::endl;
+                if (Settings::verbose())
+                    std::cout << "FOUND " << filename << " in " << search_path << std::endl;
                 prefix = search_path;
                 missing_prefixes = true; //the prefix was missing
                 break;
@@ -148,9 +119,12 @@ Dependency::Dependency(std::string path, const std::string& dependent_file)
         missing_prefixes = true;
 
         Settings::addSearchPath(getUserInputDirForFile(filename));
+        return findFile(path, dependent_file);
     }
 
     new_name = filename;
+
+    return fileExists(prefix + filename);
 }
 
 void Dependency::print()
