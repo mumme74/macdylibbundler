@@ -53,6 +53,9 @@ void bundleLibs(bool on);
 std::string destFolder();
 void destFolder(const std::string& path);
 
+std::string prefixTools();
+void setPrefixTools(const std::string& prefixTools);
+
 void addFileToFix(const std::string& path);
 int fileToFixAmount();
 std::string fileToFix(const int n);
@@ -63,6 +66,9 @@ void inside_lib_path(const std::string& p);
 void addSearchPath(const std::string& path);
 int searchPathAmount();
 std::string searchPath(const int n);
+
+bool verbose();
+void verbose(bool on);
 
 }
 #endif

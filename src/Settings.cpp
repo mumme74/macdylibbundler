@@ -43,11 +43,9 @@ void canOverwriteDir(bool permission){ overwrite_dir = permission; }
 void canCreateDir(bool permission){ create_dir = permission; }
 void canCodesign(bool permission){ codesign = permission; }
 
-
 bool bundleLibs_bool = false;
 bool bundleLibs(){ return bundleLibs_bool; }
 void bundleLibs(bool on){ bundleLibs_bool = on; }
-
 
 std::string dest_folder_str = "./libs/";
 std::string destFolder(){ return dest_folder_str; }
@@ -56,6 +54,13 @@ void destFolder(const std::string& path)
     dest_folder_str = path;
     // fix path if needed so it ends with '/'
     if( dest_folder_str[ dest_folder_str.size()-1 ] != '/' ) dest_folder_str += "/";
+}
+
+std::string prefixTools_str = "";
+std::string prefixTools() { return prefixTools_str; }
+void setPrefixTools(const std::string& prefixTools)
+{
+    prefixTools_str = prefixTools;
 }
 
 std::vector<std::string> files;
@@ -112,5 +117,9 @@ std::vector<std::string> searchPaths;
 void addSearchPath(const std::string& path){ searchPaths.push_back(path); }
 int searchPathAmount(){ return searchPaths.size(); }
 std::string searchPath(const int n){ return searchPaths[n]; }
+
+bool is_verbose = false;
+void verbose(bool on) { is_verbose = on; }
+bool verbose() { return is_verbose; }
 
 }

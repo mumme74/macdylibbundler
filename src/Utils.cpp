@@ -169,7 +169,7 @@ int systemp(const std::string& cmd)
 
 void changeInstallName(const std::string& binary_file, const std::string& old_name, const std::string& new_name)
 {
-    std::string command = std::string("install_name_tool -change \"") + old_name + "\" \"" + new_name + "\" \"" + binary_file + "\"";
+    std::string command = Settings::prefixTools() + "install_name_tool -change \"" + old_name + "\" \"" + new_name + "\" \"" + binary_file + "\"";
     if( systemp( command ) != 0 )
     {
         std::cerr << "\n\nError: An error occured while trying to fix dependencies of " << binary_file << std::endl;
@@ -187,7 +187,8 @@ std::string getUserInputDirForFile(const std::string& filename)
 
         if( fileExists( searchPath+filename ) )
         {
-            std::cerr << (searchPath+filename) << " was found. /!\\ DYLIBBUNDLER MAY NOT CORRECTLY HANDLE THIS DEPENDENCY: Manually check the executable with 'otool -L'" << std::endl;
+            std::cerr << (searchPath+filename) << " was found. /!\\ DYLIBBUNDLER MAY NOT CORRECTLY HANDLE THIS DEPENDENCY: Manually check the executable with '"
+                      << Settings::prefixTools() << "otool -L'" << std::endl;
             return searchPath;
         }
     }
@@ -211,7 +212,8 @@ std::string getUserInputDirForFile(const std::string& filename)
         }
         else
         {
-            std::cerr << (prefix+filename) << " was found. /!\\ DYLIBBUNDLER MAY NOT CORRECTLY HANDLE THIS DEPENDENCY: Manually check the executable with 'otool -L'" << std::endl;
+            std::cerr << (prefix+filename) << " was found. /!\\ DYLIBBUNDLER MAY NOT CORRECTLY HANDLE THIS DEPENDENCY: Manually check the executable with '"
+                      << Settings::prefixTools() + "otool -L'" << std::endl;
             Settings::addSearchPath(prefix);
             return prefix;
         }

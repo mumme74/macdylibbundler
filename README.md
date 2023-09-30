@@ -61,6 +61,9 @@ Copies libaries to a local directory, fixes their internal name so that they are
 fixes dependencies where bundled libraries depend on each other. If this option is not passed, no libraries will be prepared for distribution.
 </blockquote>
 
+`-v`, `--verbose`
+> Enable verbose mode, show more whats happening.
+
 `-i`, `--ignore` (path)
 > Dylibs in (path) will be ignored. By default, dylibbundler will ignore libraries installed in `/usr/lib` since they are assumed to be present by default on all OS X installations.*(It is usually recommend not to install additional stuff in `/usr/`, always use ` /usr/local/` or another prefix to avoid confusion between system libs and libs you added yourself)*
 
@@ -86,6 +89,9 @@ fixes dependencies where bundled libraries depend on each other. If this option 
 
 `-ns`, `--no-codesign`
 > Disable ad-hoc code signing.
+
+`-pt`, `--prefix-tools` (prefix)
+> Prefix external tools with this prefix. Use to find correct tool when crosscompiling. example: given prefix `x86_64-apple-darwin22.4-`, we use `x86_64-apple-darwin22.4-otool` instead of just `otool`.
 
 A command may look like
 `% dylibbundler -od -b -x ./HelloWorld.app/Contents/MacOS/helloworld -d ./HelloWorld.app/Contents/libs/`

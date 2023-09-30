@@ -75,7 +75,7 @@ void collectRpaths(const std::string& filename)
         return;
     }
 
-    std::string cmd = "otool -l \"" + filename + "\"";
+    std::string cmd = Settings::prefixTools() + "otool -l \"" + filename + "\"";
     std::string output = system_get_output(cmd);
 
     std::vector<std::string> lc_lines;
@@ -204,7 +204,7 @@ void fixRpathsOnFile(const std::string& original_file, const std::string& file_t
 
     for (size_t i=0; i < rpaths_to_fix.size(); ++i)
     {
-        std::string command = std::string("install_name_tool -rpath \"") +
+        std::string command = Settings::prefixTools() + "install_name_tool -rpath \"" +
                 rpaths_to_fix[i] + "\" \"" + Settings::inside_lib_path() + "\" \"" + file_to_fix + "\"";
         if ( systemp(command) != 0)
         {
@@ -246,12 +246,12 @@ void addDependency(const std::string& path, const std::string& filename)
 void collectDependencies(const std::string& filename, std::vector<std::string>& lines)
 {
     // execute "otool -l" on the given file and collect the command's output
-    std::string cmd = "otool -l \"" + filename + "\"";
+    std::string cmd = Settings::prefixTools() + "otool -l \"" + filename + "\"";
     std::string output = system_get_output(cmd);
 
     if(output.find("can't open file")!=std::string::npos or output.find("No such file")!=std::string::npos or output.size()<1)
     {
-        std::cerr << "Cannot find file " << filename << " to read its dependencies" << std::endl;
+        std::cerr << "Cannot find file " + filename + " to read its dependencies" << std::endl;
         exit(1);
     }
     
@@ -283,7 +283,6 @@ void collectDependencies(const std::string& filename, std::vector<std::string>& 
     }
 }
 
-
 void collectDependencies(const std::string& filename)
 {
     if (deps_collected.find(filename) != deps_collected.end()) return;
@@ -292,20 +291,30 @@ void collectDependencies(const std::string& filename)
 
     std::vector<std::string> lines;
     collectDependencies(filename, lines);
-       
-    std::cout << "."; fflush(stdout);
+
+    Settings::verbose() ? std::cout << std::endl << "Collect dependencies for '" + filename + "'" << std::endl : std::cout << ".";
+    fflush(stdout);
 
     for (const auto& line : lines)
     {
-        std::cout << "."; fflush(stdout);
         if (line[0] != '\t') continue; // only lines beginning with a tab interest us
-        if (line.find(".framework") != std::string::npos) continue; //Ignore frameworks, we can not handle them
 
         // trim useless info, keep only library name
         std::string dep_path = line.substr(1, line.rfind(" (") - 1);
-        if (Settings::isSystemLibrary(dep_path)) continue;
+
+        if (line.find(".framework") != std::string::npos) { //Ignore frameworks, we can not handle them
+            if (Settings::verbose()) std::cout << "  ignore framework: " <<  dep_path << std::endl;
+            continue;
+        }
+
+        if (Settings::isSystemLibrary(dep_path)) {
+            if (Settings::verbose()) std::cout << "  ignore system: " << dep_path << std::endl;
+            continue;
+        }
 
         addDependency(dep_path, filename);
+        Settings::verbose() ? std::cout << "  adding: " << dep_path << std::endl : std::cout << ".";
+        fflush(stdout);
     }
 
     deps_collected[filename] = true;

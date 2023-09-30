@@ -64,6 +64,8 @@ void showHelp()
     std::cout << "-cd, --create-dir (creates output directory if necessary)" << std::endl;
     std::cout << "-ns, --no-codesign (disables ad-hoc codesigning)" << std::endl;
     std::cout << "-i, --ignore <location to ignore> (will ignore libraries in this directory)" << std::endl;
+    std::cout << "-pt, --prefix-tools <'prefix' otool and install_name_tool with prefix, for cross compilation>" << std::endl;
+    std::cout << "-v, --verbose (verbose mode)" << std::endl;
     std::cout << "-h, --help" << std::endl;
 }
 
@@ -113,6 +115,12 @@ int main (int argc, char * const argv[])
             Settings::canCreateDir(true);
             continue;    
         }
+        else if(strcmp(argv[i],"-pt")==0 or strcmp(argv[i],"--prefix-tools")==0)
+        {
+            i++;
+            Settings::setPrefixTools(argv[i]);
+            continue;
+        }
         else if(strcmp(argv[i],"-cd")==0 or strcmp(argv[i],"--create-dir")==0)
         {
             Settings::canCreateDir(true);
@@ -132,6 +140,11 @@ int main (int argc, char * const argv[])
         {
             i++;
             Settings::addSearchPath(argv[i]);
+            continue;
+        }
+        if(strcmp(argv[i],"-v")==0 or strcmp(argv[i],"--verbose")==0)
+        {
+            Settings::verbose(true);
             continue;
         }
         else if(i>0)
