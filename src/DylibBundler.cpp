@@ -312,9 +312,9 @@ void collectDependencies(const std::string& filename)
             continue;
         }
 
-        addDependency(dep_path, filename);
         Settings::verbose() ? std::cout << "  adding: " << dep_path << std::endl : std::cout << ".";
         fflush(stdout);
+        addDependency(dep_path, filename);
     }
 
     deps_collected[filename] = true;
