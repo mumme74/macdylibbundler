@@ -109,7 +109,7 @@ Dependency::Dependency(std::string path, const std::string& dependent_file)
 
     filename = stripPrefix(original_file);
     prefix = original_file.substr(0, original_file.rfind("/")+1);
-    
+
     if( !prefix.empty() && prefix[ prefix.size()-1 ] != '/' ) prefix += "/";
 
     // check if this dependency is in /usr/lib, /System/Library, or in ignored list
@@ -125,7 +125,7 @@ Dependency::Dependency(std::string path, const std::string& dependent_file)
             initSearchPaths();
             searchPathAmount = Settings::searchPathAmount();
         }
-        
+
         //check if file is contained in one of the paths
         for( int i=0; i<searchPathAmount; ++i)
         {
@@ -139,7 +139,7 @@ Dependency::Dependency(std::string path, const std::string& dependent_file)
             }
         }
     }
-    
+
     //If the location is still unknown, ask the user for search path
     if( !Settings::isPrefixIgnored(prefix)
         && ( prefix.empty() || !fileExists( prefix+filename ) ) )
@@ -157,7 +157,7 @@ void Dependency::print()
 {
     std::cout << std::endl;
     std::cout << " * " << filename.c_str() << " from " << prefix.c_str() << std::endl;
-    
+
     const int symamount = symlinks.size();
     for(int n=0; n<symamount; n++)
         std::cout << "     symlink --> " << symlinks[n].c_str() << std::endl;;
@@ -197,7 +197,7 @@ bool Dependency::mergeIfSameAs(Dependency& dep2)
 void Dependency::copyYourself()
 {
     copyFile(getOriginalPath(), getInstallPath());
-    
+
     // Fix the lib's inner name
     std::string command = Settings::prefixTools() + "install_name_tool -id \"" + getInnerPath() + "\" \"" + getInstallPath() + "\"";
     if( systemp( command ) != 0 )
@@ -217,7 +217,7 @@ void Dependency::fixFileThatDependsOnMe(const std::string& file_to_fix)
     {
         changeInstallName(file_to_fix, symlinks[n], getInnerPath());
     }
-    
+
     // FIXME - hackish
     if(missing_prefixes)
     {

@@ -34,7 +34,7 @@ bool isSystemLibrary(const std::string& prefix);
 bool isPrefixBundled(const std::string& prefix);
 bool isPrefixIgnored(const std::string& prefix);
 void ignore_prefix(std::string prefix);
-    
+
 bool canOverwriteFiles();
 void canOverwriteFiles(bool permission);
 

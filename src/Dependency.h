@@ -35,7 +35,7 @@ class Dependency
     std::string filename;
     std::string prefix;
     std::vector<std::string> symlinks;
-    
+
     // installation
     std::string new_name;
 public:
@@ -47,7 +47,7 @@ public:
     std::string getOriginalPath() const{ return prefix+filename; }
     std::string getInstallPath();
     std::string getInnerPath();
-        
+
     void addSymlink(const std::string& s);
     int getSymlinkAmount() const{ return symlinks.size(); }
 
@@ -56,7 +56,7 @@ public:
 
     void copyYourself();
     void fixFileThatDependsOnMe(const std::string& file);
-    
+
     // Compares the given dependency with this one. If both refer to the same file,
     // it returns true and merges both entries into one.
     bool mergeIfSameAs(Dependency& dep2);

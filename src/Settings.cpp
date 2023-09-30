@@ -109,7 +109,7 @@ bool isPrefixBundled(const std::string& prefix)
     if(prefix.find("@executable_path") != std::string::npos) return false;
     if(isSystemLibrary(prefix)) return false;
     if(isPrefixIgnored(prefix)) return false;
-    
+
     return true;
 }
 

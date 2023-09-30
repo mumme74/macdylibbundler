@@ -53,7 +53,7 @@ void changeLibPathsOnFile(std::string file_to_fix)
         std::cout << "\n";
     }
     std::cout << "  * Fixing dependencies on " << file_to_fix.c_str() << std::endl;
-    
+
     std::vector<Dependency> deps_in_file = deps_per_file[file_to_fix];
     const int dep_amount = deps_in_file.size();
     for(int n=0; n<dep_amount; n++)
@@ -216,7 +216,7 @@ void fixRpathsOnFile(const std::string& original_file, const std::string& file_t
 void addDependency(const std::string& path, const std::string& filename)
 {
     Dependency dep(path, filename);
-    
+
     // we need to check if this library was already added to avoid duplicates
     bool in_deps = false;
     const int dep_amount = deps.size();
@@ -224,7 +224,7 @@ void addDependency(const std::string& path, const std::string& filename)
     {
         if(dep.mergeIfSameAs(deps[n])) in_deps = true;
     }
-    
+
     // check if this library was already added to |deps_per_file[filename]| to avoid duplicates
     std::vector<Dependency> deps_in_file = deps_per_file[filename];
     bool in_deps_per_file = false;
@@ -235,7 +235,7 @@ void addDependency(const std::string& path, const std::string& filename)
     }
 
     if(!Settings::isPrefixBundled(dep.getPrefix())) return;
-    
+
     if(!in_deps) deps.push_back(dep);
     if(!in_deps_per_file) deps_per_file[filename].push_back(dep);
 }
@@ -254,7 +254,7 @@ void collectDependencies(const std::string& filename, std::vector<std::string>& 
         std::cerr << "Cannot find file " + filename + " to read its dependencies" << std::endl;
         exit(1);
     }
-    
+
     // split output
     std::vector<std::string> raw_lines;
     tokenize(output, "\n", &raw_lines);
@@ -324,7 +324,7 @@ void collectSubDependencies()
 {
     // print status to user
     size_t dep_amount = deps.size();
-    
+
     // recursively collect each dependencie's dependencies
     while(true)
     {
@@ -337,7 +337,7 @@ void collectSubDependencies()
 
             collectDependencies(original_path);
         }
-        
+
         if(deps.size() == dep_amount) break; // no more dependencies were added on this iteration, stop searching
     }
 }
@@ -346,10 +346,10 @@ void createDestDir()
 {
     std::string dest_folder = Settings::destFolder();
     std::cout << "* Checking output directory " << dest_folder.c_str() << std::endl;
-    
+
     // ----------- check dest folder stuff ----------
     bool dest_exists = fileExists(dest_folder);
-    
+
     if(dest_exists and Settings::canOverwriteDir())
     {
         std::cout << "* Erasing old output directory " << dest_folder.c_str() << std::endl;
@@ -361,10 +361,10 @@ void createDestDir()
         }
         dest_exists = false;
     }
-    
+
     if(!dest_exists)
     {
-        
+
         if(Settings::canCreateDir())
         {
             std::cout << "* Creating output directory " << dest_folder.c_str() << std::endl;
@@ -381,7 +381,7 @@ void createDestDir()
             exit(1);
         }
     }
-    
+
 }
 
 void doneWithDeps_go()
@@ -394,12 +394,12 @@ void doneWithDeps_go()
         deps[n].print();
     }
     std::cout << std::endl;
-    
+
     // copy files if requested by user
     if(Settings::bundleLibs())
     {
         createDestDir();
-        
+
         for(int n=dep_amount-1; n>=0; n--)
         {
             std::cout << "\n* Processing dependency " << deps[n].getInstallPath() << std::endl;
@@ -409,7 +409,7 @@ void doneWithDeps_go()
             adhocCodeSign(deps[n].getInstallPath());
         }
     }
-    
+
     const int fileToFixAmount = Settings::fileToFixAmount();
     for(int n=fileToFixAmount-1; n>=0; n--)
     {

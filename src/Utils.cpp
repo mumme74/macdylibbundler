@@ -44,27 +44,27 @@ void setInstallPath(string loc)
 void tokenize(const string& str, const char* delim, vector<string>* vectorarg)
 {
     vector<string>& tokens = *vectorarg;
-    
+
     string delimiters(delim);
-    
+
     // skip delimiters at beginning.
     string::size_type lastPos = str.find_first_not_of( delimiters , 0);
-    
+
     // find first "non-delimiter".
     string::size_type pos = str.find_first_of(delimiters, lastPos);
-    
+
     while (string::npos != pos || string::npos != lastPos)
     {
         // found a token, add it to the vector.
         tokens.push_back(str.substr(lastPos, pos - lastPos));
-        
+
         // skip delimiters.  Note the "not_of"
         lastPos = str.find_first_not_of(delimiters, pos);
-        
+
         // find next "non-delimiter"
         pos = str.find_first_of(delimiters, lastPos);
     }
-    
+
 }
 
 
@@ -106,7 +106,7 @@ void copyFile(const string& from, const string& to)
     }
 
     string override_permission = string(override ? "-f " : "-n ");
-        
+
     // copy file to local directory
     string command = string("cp ") + override_permission + string("\"") + from + string("\" \"") + to + string("\"");
     if( from != to && systemp( command ) != 0 )
@@ -114,7 +114,7 @@ void copyFile(const string& from, const string& to)
         cerr << "\n\nError : An error occured while trying to copy file " << from << " to " << to << endl;
         exit(1);
     }
-    
+
     // give it write permission
     string command2 = string("chmod +w \"") + to + "\"";
     if( systemp( command2 ) != 0 )
