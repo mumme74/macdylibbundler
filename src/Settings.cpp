@@ -85,7 +85,7 @@ bool bundleLibs(){ return bundleLibs_bool; }
 void bundleLibs(bool on){ bundleLibs_bool = on; }
 
 std::string dest_folder_str = "./libs/";
-std::string destFolder(){ return dest_folder_str; }
+const std::string destFolder(){ return dest_folder_str; }
 void destFolder(const std::string& path)
 {
     dest_folder_str = path;
@@ -94,19 +94,23 @@ void destFolder(const std::string& path)
 }
 
 std::string prefixTools_str = "";
-std::string prefixTools() { return prefixTools_str; }
+const std::string prefixTools() { return prefixTools_str; }
 void setPrefixTools(const std::string& prefixTools)
 {
     prefixTools_str = prefixTools;
 }
 
+std::string codesign_str = "codesign";
+const std::string codeSign() { return codesign_str; }
+void setCodeSign(const std::string &codesign) { codesign_str = codesign; }
+
 std::vector<std::string> files;
 void addFileToFix(const std::string& path){ files.push_back(path); }
 int fileToFixAmount(){ return files.size(); }
-std::string fileToFix(const int n){ return files[n]; }
+const std::string fileToFix(const int n){ return files[n]; }
 
 std::string inside_path_str = "@executable_path/../libs/";
-std::string inside_lib_path(){ return inside_path_str; }
+const std::string inside_lib_path(){ return inside_path_str; }
 void inside_lib_path(const std::string& p)
 {
     inside_path_str = p;
@@ -158,7 +162,7 @@ void addSearchPath(const std::string& path){
     searchPaths.push_back(path);
 }
 int searchPathAmount(){ return searchPaths.size(); }
-std::string searchPath(const int n){ return searchPaths[n]; }
+const std::string searchPath(const int n){ return searchPaths[n]; }
 
 bool is_verbose = false;
 void verbose(bool on) { is_verbose = on; }

@@ -65,6 +65,7 @@ void showHelp()
     std::cout << "-ns, --no-codesign (disables ad-hoc codesigning)" << std::endl;
     std::cout << "-i, --ignore <location to ignore> (will ignore libraries in this directory)" << std::endl;
     std::cout << "-pt, --prefix-tools <'prefix' otool and install_name_tool with prefix, for cross compilation>" << std::endl;
+    std::cout << "-cs, --codesign <path to codesigning binary, might be zsign for example>" << std::endl;
     std::cout << "-v, --verbose (verbose mode)" << std::endl;
     std::cout << "-h, --help" << std::endl;
 }
@@ -121,6 +122,12 @@ int main (int argc, char * const argv[])
             i++;
             Settings::setPrefixTools(argv[i]);
             continue;
+        }
+        else if (strcmp(argv[i],"-cs")==0 or strcmp(argv[i],"--codesign")==0)
+        {
+           i++;
+           Settings::setCodeSign(argv[i]);
+           continue;
         }
         else if(strcmp(argv[i],"-cd")==0 or strcmp(argv[i],"--create-dir")==0)
         {

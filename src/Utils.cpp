@@ -225,9 +225,11 @@ std::string getUserInputDirForFile(const std::string& filename)
 void adhocCodeSign(const std::string& file)
 {
     if( Settings::canCodesign() == false ) return;
+    if( Settings::verbose() )
+        std::cout << "Signing '" << file << "'" << std::endl;
 
     // Add ad-hoc signature for ARM (Apple Silicon) binaries
-    std::string signCommand = std::string("codesign --force --deep --preserve-metadata=entitlements,requirements,flags,runtime --sign - \"") + file + "\"";
+    std::string signCommand = Settings::codeSign() + " --force --deep --preserve-metadata=entitlements,requirements,flags,runtime --sign - \"" + file + "\"";
     if( systemp( signCommand ) != 0 )
     {
         // If the codesigning fails, it may be a bug in Apple's codesign utility.

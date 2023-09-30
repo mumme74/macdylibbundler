@@ -51,22 +51,25 @@ void canCodesign(bool permission);
 bool bundleLibs();
 void bundleLibs(bool on);
 
-std::string destFolder();
+const std::string destFolder();
 void destFolder(const std::string& path);
 
-std::string prefixTools();
+const std::string prefixTools();
 void setPrefixTools(const std::string& prefixTools);
+
+const std::string codeSign();
+void setCodeSign(const std::string& codesign);
 
 void addFileToFix(const std::string& path);
 int fileToFixAmount();
-std::string fileToFix(const int n);
+const std::string fileToFix(const int n);
 
-std::string inside_lib_path();
+const std::string inside_lib_path();
 void inside_lib_path(const std::string& p);
 
 void addSearchPath(const std::string& path);
 int searchPathAmount();
-std::string searchPath(const int n);
+const std::string searchPath(const int n);
 
 bool verbose();
 void verbose(bool on);
