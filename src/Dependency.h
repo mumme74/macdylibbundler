@@ -32,24 +32,30 @@ THE SOFTWARE.
 class Dependency
 {
     // origin
-    std::string filename;
+    std::string original_file; // the file as it is in bin/lib
+    std::string canonical_file; // as original_file but with symlinks resolved
     std::string prefix;
     std::vector<std::string> symlinks;
+    bool framework;
 
-    bool findFile(std::string &path, const std::string& dependent_file);
+    // initialize function to be able to search many times
+    bool findPrefix(std::string &path, const std::string& dependent_file);
 
-
-    // installation
-    std::string new_name;
 public:
-    Dependency(std::string path, const std::string& dependent_file);
+    Dependency(const std::string& path, const std::string& dependent_file);
 
     void print();
 
-    std::string getOriginalFileName() const{ return filename; }
-    std::string getOriginalPath() const{ return prefix+filename; }
+    std::string getOriginalFileName() const;
+    std::string getOriginalPath() const { return prefix+getOriginalFileName(); }
+    std::string getCanonicalFileName() const;
+    std::string getCanonicalPath() const { return prefix+getCanonicalFileName(); }
     std::string getInstallPath();
     std::string getInnerPath();
+    //std::string getFrameworkRoot() const;
+    //std::string getFrameworkPath() const;
+    std::string getFrameworkName() const;
+    bool isFramework() const { return framework; }
 
     void addSymlink(const std::string& s);
     int getSymlinkAmount() const{ return symlinks.size(); }

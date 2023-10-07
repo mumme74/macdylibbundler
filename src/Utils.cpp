@@ -33,6 +33,7 @@ THE SOFTWARE.
 #include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <algorithm>
 using namespace std;
 
 /*
@@ -67,7 +68,24 @@ void tokenize(const string& str, const char* delim, vector<string>* vectorarg)
 
 }
 
+std::string stripPrefix(const std::string& in)
+{
+    auto idx = in.rfind("/");
+    if (idx != in.npos)
+        return in.substr(idx+1);
+    return in;
+}
 
+std::string stripLastSlash(const std::string& in)
+{
+    return rtrim(in).substr(0, in.rfind("/"));
+}
+
+std::string rtrim(const std::string &in) {
+    std::string s = in;
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c){ return !std::isspace(c); }).base(), s.end());
+    return s;
+}
 
 bool fileExists(const std::string& filename)
 {
@@ -165,7 +183,8 @@ std::string system_get_output(const std::string& cmd)
 
 int systemp(const std::string& cmd)
 {
-    std::cout << "    " << cmd.c_str() << std::endl;
+    if (Settings::verbose())
+        std::cout << "    " << cmd.c_str() << std::endl;
     return system(cmd.c_str());
 }
 

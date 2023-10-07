@@ -29,6 +29,9 @@ THE SOFTWARE.
 #include <set>
 #include <map>
 #include <regex>
+#include <filesystem>
+#include <iostream>
+#include <fstream>
 #include <sys/param.h>
 #ifdef __linux
 #include <linux/limits.h>
@@ -37,6 +40,10 @@ THE SOFTWARE.
 #include "Settings.h"
 #include "Dependency.h"
 
+namespace fs = std::filesystem;
+
+void mkAppBundleTemplate();
+void mkInfoPlist();
 
 std::vector<Dependency> deps;
 std::map<std::string, std::vector<Dependency> > deps_per_file;
@@ -195,6 +202,7 @@ std::string searchFilenameInRpaths(const std::string& rpath_dep)
 
 void fixRpathsOnFile(const std::string& original_file, const std::string& file_to_fix)
 {
+    if (Settings::createAppBundle()) return; // don't change @rpath on app bundles
     std::vector<std::string> rpaths_to_fix;
     std::map<std::string, std::vector<std::string> >::iterator found = rpaths_per_file.find(original_file);
     if (found != rpaths_per_file.end())
@@ -234,7 +242,12 @@ void addDependency(const std::string& path, const std::string& filename)
         if(dep.mergeIfSameAs(deps_in_file[n])) in_deps_per_file = true;
     }
 
-    if(!Settings::isPrefixBundled(dep.getPrefix())) return;
+    if(!Settings::isPrefixBundled(dep.getPrefix())) {
+        if (Settings::verbose())
+            std::cout << "*Ignoring dependency " << dep.getPrefix()
+                      << " prefix not bundled" << std::endl;
+        return;
+    }
 
     if(!in_deps) deps.push_back(dep);
     if(!in_deps_per_file) deps_per_file[filename].push_back(dep);
@@ -302,7 +315,9 @@ void collectDependencies(const std::string& filename)
         // trim useless info, keep only library name
         std::string dep_path = line.substr(1, line.rfind(" (") - 1);
 
-        if (line.find(".framework") != std::string::npos) { //Ignore frameworks, we can not handle them
+        if (line.find(".framework") != std::string::npos &&
+            !Settings::bundleFrameworks())
+        {
             if (Settings::verbose()) std::cout << "  ignore framework: " <<  dep_path << std::endl;
             continue;
         }
@@ -312,7 +327,9 @@ void collectDependencies(const std::string& filename)
             continue;
         }
 
-        Settings::verbose() ? std::cout << "  adding: " << dep_path << std::endl : std::cout << ".";
+        if (Settings::verbose())
+          std::cout << "  adding: " << dep_path << " dependent file: " << filename <<std::endl;
+        else std::cout << ".";
         fflush(stdout);
         addDependency(dep_path, filename);
     }
@@ -365,7 +382,6 @@ void createDestDir()
 
     if(!dest_exists)
     {
-
         if(Settings::canCreateDir())
         {
             std::cout << "* Creating output directory " << dest_folder.c_str() << std::endl;
@@ -396,6 +412,8 @@ void doneWithDeps_go()
     }
     std::cout << std::endl;
 
+    if(Settings::createAppBundle()) mkAppBundleTemplate();
+
     // copy files if requested by user
     if(Settings::bundleLibs())
     {
@@ -403,21 +421,106 @@ void doneWithDeps_go()
 
         for(int n=dep_amount-1; n>=0; n--)
         {
-            std::cout << "\n* Processing dependency " << deps[n].getInstallPath() << std::endl;
+            if (Settings::verbose())
+                std::cout << "\n* Processing dependency " << deps[n].getInstallPath() << std::endl;
             deps[n].copyYourself();
             changeLibPathsOnFile(deps[n].getInstallPath());
             fixRpathsOnFile(deps[n].getOriginalPath(), deps[n].getInstallPath());
             adhocCodeSign(deps[n].getInstallPath());
+            if (Settings::verbose())
+                std::cout << "\n-- Done Processing dependency for " << deps[n].getInnerPath() << std::endl;
         }
     }
 
     const int fileToFixAmount = Settings::fileToFixAmount();
     for(int n=fileToFixAmount-1; n>=0; n--)
     {
-        std::cout << "\n* Processing " << Settings::fileToFix(n) << std::endl;
-        copyFile(Settings::fileToFix(n), Settings::fileToFix(n)); // to set write permission
-        changeLibPathsOnFile(Settings::fileToFix(n));
-        fixRpathsOnFile(Settings::fileToFix(n), Settings::fileToFix(n));
-        adhocCodeSign(Settings::fileToFix(n));
+        if (Settings::verbose())
+            std::cout << "\n* Processing " << Settings::srcFileToFix(n) << std::endl;
+        copyFile(Settings::srcFileToFix(n), Settings::outFileToFix(n)); // to set write permission or move
+        changeLibPathsOnFile(Settings::outFileToFix(n));
+        fixRpathsOnFile(Settings::outFileToFix(n), Settings::outFileToFix(n));
+        adhocCodeSign(Settings::outFileToFix(n));
+        if (Settings::verbose())
+            std::cout << "\n-- Done Processing dependency for " << Settings::srcFileToFix(n) << std::endl;
     }
+}
+
+bool hasFrameworkDep() {
+    return deps.end() != std::find_if(deps.begin(), deps.end(),[](Dependency &dep){
+        return dep.isFramework();
+    });
+}
+
+void mkAppBundleTemplate() {
+    // see https://eclecticlight.co/2021/12/13/whats-in-that-app-a-guide-to-app-internal-structure/
+    // setting up directory structure and symlinks
+    auto curDir = fs::current_path();
+    auto bundleName = Settings::appBundleName();
+    if (fs::exists(bundleName)) {
+        if (Settings::canOverwriteDir())
+            fs::remove_all(bundleName);
+        else {
+            std::cout << "Can't overwrite " << bundleName << std::endl;
+            exit(1);
+        }
+    }
+    auto cont = Settings::appBundleContentsDir();
+    fs::create_directories(Settings::appBundleExecDir());
+    if (hasFrameworkDep())
+        fs::create_directory(cont + "/Frameworks");
+    auto appRootDir = bundleName + "/" + bundleName;
+    fs::create_directory(appRootDir);
+    fs::current_path(appRootDir);
+    fs::create_directory_symlink("../Contents", "Contents");
+    fs::current_path(curDir);
+
+    // not sure if its needed, for old version macs
+    std::ofstream pkgInfo;
+    pkgInfo.open(cont + "/Pkginfo");
+    pkgInfo << "APPL????";
+    pkgInfo.close();
+
+    mkInfoPlist();
+}
+
+void mkInfoPlist() {
+    /// default find any a Info.plist file in current dir
+    if (Settings::infoPlist().empty() && fs::exists("Info.plist"))
+        Settings::setInfoPlist("Info.plist");
+
+    std::stringstream plist;
+    if (!Settings::infoPlist().empty()) {
+        std::ifstream infoPlist;
+        infoPlist.open(Settings::infoPlist());
+        plist << infoPlist.rdbuf();
+        infoPlist.close();
+    } else {
+        std::cout << "* Creating a minimal Info.plist file." << std::endl
+                  << "    See --app-info-plist option to customize" << std::endl;
+
+        std::string appName = Settings::appBundleName();
+        appName = appName.substr(0, appName.find("."));
+
+        plist << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+              << "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\""
+              << " \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+              << "<plist version=\"1.0\">\n"
+              << "<dict>\n"
+              << "  <key>CFBundleExecutable</key>\n"
+              << "  <string>" << appName << "</string>\n"
+              << "  <key>CFBundleIconFile</key>\n"
+              << "  <string></string>\n"
+              << "  <key>CFBundleIdentifer</key>\n"
+              << "  <string>com.yourcompany." << appName << "</string>\n"
+	          << "  <key>NOTE</key>\n"
+	          << "  <string>This file was generated by macdylibbundler.</string>\n"
+              << "</dict>\n"
+              << "</plist>\n";
+    }
+
+    std::ofstream infoPlist;
+    infoPlist.open(Settings::appBundleContentsDir() + "/Info.plist");
+    infoPlist << plist.str();
+    infoPlist.close();
 }

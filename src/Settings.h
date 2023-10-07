@@ -50,26 +50,56 @@ void canCodesign(bool permission);
 
 bool bundleLibs();
 void bundleLibs(bool on);
+/// If we should bundle frameworks
+bool bundleFrameworks();
+/// Set if we should bundle frameworks
+void setBundleFrameworks(bool on);
+/// path to Frameworks dir in app bundle or same as libs/ folder
+const std::string frameworkDir();
 
 const std::string destFolder();
 void destFolder(const std::string& path);
 
+/// For cross compiling prefix otool and install_name_tool
+/// with prefix
 const std::string prefixTools();
+/// Set cross compiling tool prefix
 void setPrefixTools(const std::string& prefixTools);
 
 const std::string codeSign();
 void setCodeSign(const std::string& codesign);
 
+/// if we should create a app bundle
+bool createAppBundle();
+void setCreateAppBundle(bool on);
+/// The name of the app bundle
+/// ie: name.app
+const std::string appBundleName();
+/// The name of the app
+void setAppBundleName(const std::string& name);
+/// Get the path to Contents directory in bundle
+///  example: name.app/Contents
+const std::string appBundleContentsDir();
+/// Get the path to exec directory in bundle
+///  example: name.app/Contents/MacOS
+const std::string appBundleExecDir();
+/// Path to Info.plist file
+const std::string infoPlist();
+bool setInfoPlist(const std::string& plist);
+
 void addFileToFix(const std::string& path);
 int fileToFixAmount();
-const std::string fileToFix(const int n);
+const std::string srcFileToFix(const int n);
+const std::string outFileToFix(const int n);
 
 const std::string inside_lib_path();
+const std::string inside_framework_path();
 void inside_lib_path(const std::string& p);
 
 void addSearchPath(const std::string& path);
 int searchPathAmount();
 const std::string searchPath(const int n);
+
 
 bool verbose();
 void verbose(bool on);

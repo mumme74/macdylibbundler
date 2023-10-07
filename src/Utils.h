@@ -31,6 +31,15 @@ THE SOFTWARE.
 
 class Library;
 
+/// Strip the first dir
+/// ie ./name -> name,
+///    \@rpath/dir/name -> dir/name
+std::string stripPrefix(const std::string& in);
+/// Strip the last '/'
+std::string stripLastSlash(const std::string& in);
+/// Trim trailing whitespace
+std::string rtrim(const std::string &in);
+
 void tokenize(const std::string& str, const char* delimiters, std::vector<std::string>*);
 bool fileExists(const std::string& filename);
 

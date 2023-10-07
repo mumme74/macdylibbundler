@@ -23,8 +23,10 @@ THE SOFTWARE.
  */
 
 #include "Settings.h"
+#include "Utils.h"
 #include <vector>
 #include <sstream>
+#include <filesystem>
 
 //initialize the dylib search paths
 void initSearchPaths(){
@@ -85,12 +87,20 @@ bool bundleLibs(){ return bundleLibs_bool; }
 void bundleLibs(bool on){ bundleLibs_bool = on; }
 
 std::string dest_folder_str = "./libs/";
-const std::string destFolder(){ return dest_folder_str; }
+const std::string destFolder()
+{
+    if (createAppBundle())
+        return appBundleExecDir() +
+            stripPrefix(stripLastSlash(dest_folder_str)) + "/";
+    return dest_folder_str;
+}
+
 void destFolder(const std::string& path)
 {
     dest_folder_str = path;
     // fix path if needed so it ends with '/'
-    if( dest_folder_str[ dest_folder_str.size()-1 ] != '/' ) dest_folder_str += "/";
+    if( dest_folder_str[ dest_folder_str.size()-1 ] != '/' )
+        dest_folder_str += "/";
 }
 
 std::string prefixTools_str = "";
@@ -107,15 +117,74 @@ void setCodeSign(const std::string &codesign) { codesign_str = codesign; }
 std::vector<std::string> files;
 void addFileToFix(const std::string& path){ files.push_back(path); }
 int fileToFixAmount(){ return files.size(); }
-const std::string fileToFix(const int n){ return files[n]; }
+const std::string srcFileToFix(const int n) { return files[n]; }
+const std::string outFileToFix(const int n) {
+    if (createAppBundle())
+        return appBundleExecDir() + files[n];
+    return files[n];
+}
 
-std::string inside_path_str = "@executable_path/../libs/";
-const std::string inside_lib_path(){ return inside_path_str; }
+bool create_app_bundle = false;
+bool createAppBundle() { return create_app_bundle; }
+void setCreateAppBundle(bool on) {
+    create_app_bundle = on;
+    // automatically bundle libs and frameworks if app bundle
+    bundleLibs(true);
+    setBundleFrameworks(on);
+}
+
+std::string app_bundle_name;
+const std::string appBundleName() {
+    std::string name = app_bundle_name.empty() ? files.front() : app_bundle_name;
+    if (name.rfind(".app") != name.size() -1) name+=".app";
+    return name;
+}
+void setAppBundleName(const std::string& name) {
+    auto n = name.substr(name.find("/")+1);
+    app_bundle_name = n.substr(0, n.rfind("/")-1);
+    setCreateAppBundle(true);
+}
+const std::string appBundleContentsDir() {
+    return appBundleName() + "/Contents/";
+}
+const std::string appBundleExecDir() {
+    return appBundleContentsDir() + "MacOS/";
+}
+
+std::string plist_str;
+const std::string infoPlist() { return plist_str; }
+bool setInfoPlist(const std::string& plist) {
+    if (std::filesystem::exists(plist)) {
+        plist_str = plist;
+        return true;
+    }
+    return false;
+}
+
+std::string inside_path_str;
+const std::string inside_lib_path(){
+    if (inside_path_str.empty()) {
+        auto dir = stripLastSlash(dest_folder_str);
+        if (dir[0] == '.' && (dir[1] == '.' || dir[1] == '/'))
+            dir = dir.substr(2);
+        else if (dir[0] == '/')
+            dir = dir.substr(1);
+        return std::string("@executable_path/") + dir + "/";
+    }
+    return inside_path_str;
+}
 void inside_lib_path(const std::string& p)
 {
     inside_path_str = p;
     // fix path if needed so it ends with '/'
-    if( inside_path_str[ inside_path_str.size()-1 ] != '/' ) inside_path_str += "/";
+    if( inside_path_str[ inside_path_str.size()-1 ] != '/' )
+        inside_path_str += "/";
+}
+const std::string inside_framework_path() {
+    if (createAppBundle())
+        return "@rpath/Frameworks/";
+    auto path = stripLastSlash(inside_lib_path());
+    return path.substr(0, path.find("/")) + "/Frameworks/";
 }
 
 std::vector<std::string> prefixes_to_ignore;
@@ -146,7 +215,9 @@ bool isPrefixIgnored(const std::string& prefix)
 
 bool isPrefixBundled(const std::string& prefix)
 {
-    if(prefix.find(".framework") != std::string::npos) return false;
+    if(!Settings::bundleFrameworks() &&
+        prefix.find(".framework") != std::string::npos)
+    { return false; }
     if(prefix.find("@executable_path") != std::string::npos) return false;
     if(isSystemLibrary(prefix)) return false;
     if(isPrefixIgnored(prefix)) return false;
@@ -167,5 +238,13 @@ const std::string searchPath(const int n){ return searchPaths[n]; }
 bool is_verbose = false;
 void verbose(bool on) { is_verbose = on; }
 bool verbose() { return is_verbose; }
+
+bool bundle_frameworks = false;
+bool bundleFrameworks() { return bundle_frameworks; }
+void setBundleFrameworks(bool on) { bundle_frameworks = on; }
+const std::string frameworkDir() {
+    return bundle_frameworks ?
+        appBundleContentsDir() + "Frameworks/" : destFolder();
+}
 
 }

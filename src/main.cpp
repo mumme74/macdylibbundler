@@ -55,7 +55,10 @@ void showHelp()
     std::cout << "dylibbundler is a utility that helps bundle dynamic libraries inside macOS app bundles.\n" << std::endl;
 
     std::cout << "-x, --fix-file <file to fix (executable or app plug-in)>" << std::endl;
+    std::cout << "-a, --app <app bundle name, create a app bundle with this name (default name is -x name)>" << std::endl;
+    std::cout << "-pl, --app-info-plist <Optional path to a Info.plist to bundle into app>" << std::endl;
     std::cout << "-b, --bundle-deps" << std::endl;
+    std::cout << "-f, --bundle-frameworks (Bundle frameworks)" << std::endl;
     std::cout << "-d, --dest-dir <directory to send bundled libraries (relative to cwd)>" << std::endl;
     std::cout << "-p, --install-path <'inner' path of bundled libraries (usually relative to executable, by default '@executable_path/../libs/')>" << std::endl;
     std::cout << "-s, --search-path <directory to add to list of locations searched>" << std::endl;
@@ -83,6 +86,26 @@ int main (int argc, char * const argv[])
             Settings::addFileToFix(argv[i]);
             continue;
         }
+        if(strcmp(argv[i],"-a")==0 or strcmp(argv[i], "--app")==0)
+        {
+            if (argc > i+1 && argv[i+1][0]!='-') {
+                i++;
+                Settings::setAppBundleName(argv[i]);
+            } else {
+                Settings::setCreateAppBundle(true);
+            }
+            continue;
+        }
+        else if (strcmp(argv[i],"-pl")==0 or strcmp(argv[i],"--app-info-plist")==0)
+        {
+            if (argc > i+1 && argv[i+1][0]!='-') {
+                i++;
+                if (Settings::setInfoPlist(argv[i]))
+                    continue;
+            }
+            std::cerr << "--app-info-plist requires a valid Info.plist file." << std::endl;
+            exit(1);
+        }
         else if(strcmp(argv[i],"-b")==0 or strcmp(argv[i],"--bundle-deps")==0)
         {
             Settings::bundleLibs(true);
@@ -104,6 +127,11 @@ int main (int argc, char * const argv[])
         {
             i++;
             Settings::destFolder(argv[i]);
+            continue;
+        }
+        else if (strcmp(argv[i],"-f")==0 or strcmp(argv[i],"--bundle-frameworks")==0)
+        {
+            Settings::setBundleFrameworks(true);
             continue;
         }
         else if(strcmp(argv[i],"-of")==0 or strcmp(argv[i],"--overwrite-files")==0)
@@ -175,10 +203,13 @@ int main (int argc, char * const argv[])
 
     const int amount = Settings::fileToFixAmount();
     for(int n=0; n<amount; n++)
-        collectDependencies(Settings::fileToFix(n));
+        collectDependencies(Settings::srcFileToFix(n));
 
     collectSubDependencies();
     doneWithDeps_go();
+
+    std::cout << "\n\n -- Processed " << amount << " file"
+              << (amount > 1 ? "s" :"") << "." << std::endl;
 
     return 0;
 }
