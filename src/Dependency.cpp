@@ -78,17 +78,15 @@ Dependency::Dependency(const std::string& path, const std::string& dependent_fil
         original_file = searchFilenameInRpaths(pathTrim, dependent_file);
         canonical_file = original_file;
     } else {
+      original_file = pathTrim;
+
       if (fs::is_symlink(pathTrim, err)) {
-        original_file = pathTrim;
         canonical_file = fs::read_symlink(pathTrim, err);
       } else if (err) {
-        original_file = fs::absolute(pathTrim, err);
-        if (err) original_file = pathTrim;
         canonical_file = fs::canonical(original_file, err);
         if (err) canonical_file = pathTrim;
       } else {
-        original_file = pathTrim; // no idea what it is?
-        canonical_file = original_file;
+        canonical_file = original_file; // no idea what it is?
       }
     }
 
