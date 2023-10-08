@@ -41,18 +41,34 @@ THE SOFTWARE.
 
 namespace fs = std::filesystem;
 
-void cleanupFramwork(const std::string& frameworkPath) {
-    std::vector<std::string> rmPaths {"Headers"};
-    for (auto rmPath : rmPaths) {
-        auto path = frameworkPath + "/" + rmPath;
-        auto canonPath = fs::canonical(path);
-        fs::remove_all(canonPath);
-        if (fs::exists(path))
-            fs::remove_all(path);
-        for (auto& entry : fs::directory_iterator(frameworkPath)) {
-            if (entry.path().extension() == "prl") fs::remove(entry);
+void cleanupFramwork(const fs::path frameworkPath, std::vector<std::string> keep) {
+    std::error_code err;
+    keep.push_back("Versions");
+    keep.push_back("Resources");
+
+    auto clean = [&err](fs::path path, std::vector<std::string>&keep) {
+        for (auto& entry : fs::directory_iterator(path)) {
+            if (std::find(keep.begin(), keep.end(), entry.path().filename()) != keep.end())
+                continue; // keep this path
+
+            fs::remove_all(entry, err);
+            if (err) std::cerr << "Error occurred when cleaning up Framework "
+                               << path << "\n error: " << err.message()
+                               << std::endl;
         }
-    }
+    };
+
+    // cleanup inside Versions
+    std::vector<std::string> k{"Current"};
+    auto curPath = frameworkPath / "Versions" / "Current";
+    if (fs::is_symlink(curPath, err))
+        k.push_back(fs::read_symlink(curPath));
+    clean(frameworkPath / "Versions", k);
+    // inside the current versions dir
+    clean(frameworkPath / "Versions" / k.back(), keep);
+
+    // cleanup root
+    clean(frameworkPath, keep);
 }
 
 void installId(const std::string& innerPath, const std::string& installPath){
@@ -261,7 +277,8 @@ void Dependency::copyYourself()
                      | fs::copy_options::copy_symlinks;
     fs::copy(from, to, copyOptions);
 
-    if (framework) cleanupFramwork(to);
+    if (framework)
+        cleanupFramwork(to, std::vector<std::string>{getCanonicalFileName()});
 
     // Fix the lib's inner name
     installId(getInnerPath(), getInstallPath());
