@@ -10,12 +10,14 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
+# json lib
 add_executable(jsontest test_Json.cpp)
 target_link_libraries(jsontest gtest_main json)
 target_include_directories(jsontest PUBLIC ${CMAKE_SOURCE_DIR}/src/jsonlib)
 add_test(NAME jsontest COMMAND $<TARGET_FILE:jsontest>
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# argparser lib
 add_executable(argparsertest test_ArgParser.cpp)
 target_link_libraries(argparsertest gtest_main argparser dylib)
 target_include_directories(
@@ -25,3 +27,13 @@ target_include_directories(
 )
 add_test(NAME argparsertest COMMAND $<TARGET_FILE:argparsertest>
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# common lib
+add_executable(commontest test_Common.cpp)
+target_link_libraries(commontest gtest_main common)
+target_include_directories(
+  commontest PUBLIC
+    ${CMAKE_SOURCE_DIR}/src/common
+)
+add_test(NAME commontest COMMAND $<TARGET_FILE:commontest>
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

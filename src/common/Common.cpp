@@ -29,60 +29,61 @@ THE SOFTWARE.
 #include <iostream>
 #include "Common.h"
 
-using namespace std;
 
-void tokenize(const string& str, const char* delim, vector<string>* vectorarg)
+std::vector<std::string>
+tokenize(const std::string& str, const std::string& delimiters)
 {
-    vector<string>& tokens = *vectorarg;
+  std::vector<std::string> tokens;
 
-    string delimiters(delim);
+  // skip delimiters at beginning.
+  auto lastPos = str.find_first_not_of( delimiters , 0);
 
-    // skip delimiters at beginning.
-    string::size_type lastPos = str.find_first_not_of( delimiters , 0);
+  // find first "non-delimiter".
+  auto pos = str.find_first_of(delimiters, lastPos);
 
-    // find first "non-delimiter".
-    string::size_type pos = str.find_first_of(delimiters, lastPos);
+  while (str.npos != pos || str.npos != lastPos)
+  {
+      // found a token, add it to the vector.
+      tokens.push_back(str.substr(lastPos, pos - lastPos));
 
-    while (string::npos != pos || string::npos != lastPos)
-    {
-        // found a token, add it to the vector.
-        tokens.push_back(str.substr(lastPos, pos - lastPos));
+      // skip delimiters.  Note the "not_of"
+      lastPos = str.find_first_not_of(delimiters, pos);
 
-        // skip delimiters.  Note the "not_of"
-        lastPos = str.find_first_not_of(delimiters, pos);
-
-        // find next "non-delimiter"
-        pos = str.find_first_of(delimiters, lastPos);
-    }
-
+      // find next "non-delimiter"
+      pos = str.find_first_of(delimiters, lastPos);
+  }
+  return tokens;
 }
 
 std::string stripPrefix(const std::string& in)
 {
-    auto idx = in.rfind("/");
-    if (idx != in.npos)
-        return in.substr(idx+1);
-    return in;
+  auto idx = in.rfind("/");
+  if (idx != in.npos)
+      return in.substr(idx+1);
+  return in;
 }
 
 std::string stripLastSlash(const std::string& in)
 {
-    return rtrim(in).substr(0, in.rfind("/"));
+  return rtrim(in).substr(0, in.rfind("/"));
 }
 
 std::string rtrim(const std::string &in) {
-    std::string s = in;
-    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c){ return !std::isspace(c); }).base(), s.end());
-    return s;
+  std::string s = in;
+  s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c){ return !std::isspace(c); }).base(), s.end());
+  return s;
 }
 
 
 void exitMsg(const std::string& msg,
-                 std::error_code err /* = std::error_code()*/,
-                 int exitCode /* = 1*/)
+                 std::error_code err /* = std::error_code()*/)
 {
-    std::cerr << msg;
-    if (err) std::cerr << " " << err.message();
-    std::cerr << std::endl;
-    exit(exitCode);
+  std::cerr << msg;
+  int code = 1;
+  if (err) {
+    std::cerr << " " << err.message();
+    code = err.value();
+  }
+  std::cerr << std::endl;
+  exit(code);
 }

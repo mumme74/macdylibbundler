@@ -69,9 +69,7 @@ void initAppBundleScripts(int argc, const char* argv[]) {
     if (pscPaths != nullptr)
         scPaths = pscPaths;
 
-    std::vector<std::string> paths;
-    const char delim = ':';
-    tokenize(scPaths, &delim, &paths);
+    auto paths = tokenize(scPaths, ":");
 std::cout << scPaths<< "\npaths:"<<std::endl;
 for(const auto& p:paths)
     std::cout<<p<<std::endl;

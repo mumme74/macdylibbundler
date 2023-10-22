@@ -41,13 +41,13 @@ std::string stripPrefix(const std::string& in);
 std::string stripLastSlash(const std::string& in);
 /// Trim trailing whitespace
 std::string rtrim(const std::string &in);
-
-void tokenize(const std::string& str, const char* delimiters,
-              std::vector<std::string>*);
+/// split str on delimiters into vector<string>
+std::vector<std::string> tokenize(
+  const std::string& str,
+  const std::string& delimiters);
 
 // print msg to stderr and exit
 void exitMsg(const std::string& msg,
-                 std::error_code err = std::error_code(),
-                 int exitCode = 1);
+                 std::error_code err = std::error_code());
 
 #endif // COMMON_H

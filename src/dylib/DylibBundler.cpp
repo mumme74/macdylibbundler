@@ -87,8 +87,7 @@ void collectRpaths(const std::string& filename)
     std::string cmd = Settings::prefixTools() + "otool -l \"" + filename + "\"";
     std::string output = system_get_output(cmd);
 
-    std::vector<std::string> lc_lines;
-    tokenize(output, "\n", &lc_lines);
+    auto lc_lines = tokenize(output, "\n");
 
     size_t pos = 0;
     bool read_rpath = false;
@@ -268,8 +267,7 @@ void collectDependencies(const std::string& filename, std::vector<std::string>& 
         exitMsg(std::string("Cannot find file ") + filename + " to read its dependencies");
 
     // split output
-    std::vector<std::string> raw_lines;
-    tokenize(output, "\n", &raw_lines);
+    auto raw_lines = tokenize(output, "\n");
 
     bool searching = false;
     for(const auto& line : raw_lines) {
