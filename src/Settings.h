@@ -26,10 +26,13 @@ THE SOFTWARE.
 #define _settings_
 
 #include <string>
+#include <vector>
+#include <filesystem>
+#include "Json.h"
 
 namespace Settings
 {
-void init();
+void init(int argc, const char* argv[]);
 
 bool isSystemLibrary(const std::string& prefix);
 bool isPrefixBundled(const std::string& prefix);
@@ -72,19 +75,25 @@ void setCodeSign(const std::string& codesign);
 /// if we should create a app bundle
 bool createAppBundle();
 void setCreateAppBundle(bool on);
-/// The name of the app bundle
+/// The path to the app bundle
 /// ie: name.app
-const std::string appBundleName();
-/// The name of the app
-void setAppBundleName(const std::string& name);
+const std::filesystem::path appBundlePath();
+/// The path to the app
+void setAppBundlePath(const std::string& path);
+/// Add a script which is run after appBundle is complete
+void setAppBundleScript(const std::filesystem::path script);
+/// reference to all app bundle scripts which should run after appBundle is complete
+std::vector<std::filesystem::path>& appBundleScripts();
+/// prevent all appBundle scripts from beeing run
+void preventAppBundleScripts();
 /// Get the path to Contents directory in bundle
 ///  example: name.app/Contents
-const std::string appBundleContentsDir();
+const std::filesystem::path appBundleContentsDir();
 /// Get the path to exec directory in bundle
 ///  example: name.app/Contents/MacOS
-const std::string appBundleExecDir();
+const std::filesystem::path appBundleExecDir();
 /// Path to Info.plist file
-const std::string infoPlist();
+const std::filesystem::path& infoPlist();
 bool setInfoPlist(const std::string& plist);
 
 void addFileToFix(const std::string& path);
@@ -103,6 +112,9 @@ const std::string searchPath(const int n);
 
 bool verbose();
 void verbose(bool on);
+
+/// insert settings into rootObj
+std::unique_ptr<json::Object> toJson();
 
 }
 #endif

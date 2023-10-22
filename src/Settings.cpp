@@ -22,11 +22,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
  */
 
-#include "Settings.h"
-#include "Utils.h"
+#include <filesystem>
+#include <iostream>
 #include <vector>
 #include <sstream>
-#include <filesystem>
+#include <algorithm>
+#include "Settings.h"
+#include "Utils.h"
 
 //initialize the dylib search paths
 void initSearchPaths(){
@@ -59,12 +61,38 @@ void initSearchPaths(){
     }
 }
 
+void initAppBundleScripts(int argc, const char* argv[]) {
+    (void)argc;
+    std::string scPaths = (std::filesystem::weakly_canonical(argv[0]).parent_path() / "scripts").string();
+    const char* pscPaths = std::getenv("DYLIBBUNDLER_SCRIPTS_PATH");
+    // else get dir of the executable
+    if (pscPaths != nullptr)
+        scPaths = pscPaths;
+
+    std::vector<std::string> paths;
+    const char delim = ':';
+    tokenize(scPaths, &delim, &paths);
+
+    std::vector<std::string> skip{"__init__.py", "common.py"};
+
+    for (auto &path : paths) {
+        for (auto& entry : std::filesystem::directory_iterator(path)) {
+            if (std::find(skip.begin(), skip.end(), entry.path().filename()) != skip.end())
+            { continue; } // skip
+            if (entry.path().extension() == ".py")
+                Settings::setAppBundleScript(entry.path());
+        }
+    }
+
+}
+
 
 namespace Settings
 {
 
-void init() {
+void init(int argc, const char* argv[]) {
     initSearchPaths();
+    initAppBundleScripts(argc, argv);
 }
 
 bool overwrite_files = false;
@@ -90,8 +118,8 @@ std::string dest_folder_str = "./libs/";
 const std::string destFolder()
 {
     if (createAppBundle())
-        return appBundleExecDir() +
-            stripPrefix(stripLastSlash(dest_folder_str)) + "/";
+        return appBundleExecDir() /
+            stripPrefix(stripLastSlash(dest_folder_str)) / "";
     return dest_folder_str;
 }
 
@@ -119,8 +147,10 @@ void addFileToFix(const std::string& path){ files.push_back(path); }
 int fileToFixAmount(){ return files.size(); }
 const std::string srcFileToFix(const int n) { return files[n]; }
 const std::string outFileToFix(const int n) {
-    if (createAppBundle())
-        return appBundleExecDir() + files[n];
+    if (createAppBundle()) {
+        auto file = std::filesystem::path(files[n]).filename();
+        return appBundleExecDir() / file;
+    }
     return files[n];
 }
 
@@ -133,29 +163,56 @@ void setCreateAppBundle(bool on) {
     setBundleFrameworks(on);
 }
 
-std::string app_bundle_name;
-const std::string appBundleName() {
-    std::string name = app_bundle_name.empty() ? files.front() : app_bundle_name;
+std::filesystem::path app_bundle_path;
+const std::filesystem::path appBundlePath() {
+    auto path = app_bundle_path.empty() ?
+        std::filesystem::path(files.front()) : app_bundle_path;
+    auto name = path.filename().string();
     if (name.rfind(".app") != name.size() -1) name+=".app";
-    return name;
+    path.replace_filename(name);
+    return path;
 }
-void setAppBundleName(const std::string& name) {
-    auto n = name.substr(name.find("/")+1);
-    app_bundle_name = n.substr(0, n.rfind("/")-1);
+void setAppBundlePath(const std::string& path) {
+    auto n = path.substr(path.find("/")+1);
+    app_bundle_path = n.substr(0, n.rfind("/")-1);
     setCreateAppBundle(true);
 }
-const std::string appBundleContentsDir() {
-    return appBundleName() + "/Contents/";
+
+std::vector<std::filesystem::path> all_appBundleScripts;
+bool scriptsPrevented = false;
+void setAppBundleScript(const std::filesystem::path script) {
+    if (!std::filesystem::exists(script)) {
+        std::cerr << "Script " << script << "does not exist." << std::endl;
+        exit(1);
+    } else if (script.extension() != ".py") {
+        std::cerr << "Script " << script << " ext:" << script.extension() << "is not a *.py script." << std::endl;
+        exit(1);
+    } else if (scriptsPrevented) {
+        std::cerr << "Scripts are prevented, can't add " << script << std::endl;
+        exit(1);
+    }
+    all_appBundleScripts.push_back(std::filesystem::path(script));
 }
-const std::string appBundleExecDir() {
-    return appBundleContentsDir() + "MacOS/";
+/// reference to all app bundle scripts which should run after appBundle is complete
+std::vector<std::filesystem::path>& appBundleScripts() {
+    return all_appBundleScripts;
+}
+/// prevent all appBundle scripts from beeing run
+void preventAppBundleScripts() {
+    scriptsPrevented = true;
+}
+const std::filesystem::path appBundleContentsDir() {
+    return appBundlePath() / "Contents" / "";
+}
+const std::filesystem::path appBundleExecDir() {
+    return appBundleContentsDir() / "MacOS" / "";
 }
 
-std::string plist_str;
-const std::string infoPlist() { return plist_str; }
+std::filesystem::path plist_path;
+const std::filesystem::path& infoPlist() { return plist_path; }
 bool setInfoPlist(const std::string& plist) {
     if (std::filesystem::exists(plist)) {
-        plist_str = plist;
+        plist_path = plist;
         return true;
     }
     return false;
@@ -244,7 +301,31 @@ bool bundleFrameworks() { return bundle_frameworks; }
 void setBundleFrameworks(bool on) { bundle_frameworks = on; }
 const std::string frameworkDir() {
     return bundle_frameworks ?
-        appBundleContentsDir() + "Frameworks/" : destFolder();
+        appBundleContentsDir() / "Frameworks" / "" :
+            std::filesystem::path(destFolder());
+}
+
+std::unique_ptr<json::Object> toJson() {
+    using namespace json;
+    auto obj = std::make_unique<Object>(
+      std::initializer_list<std::pair<std::string, VluBase>>{
+        {"canOverWriteFiles", Bool(canOverwriteFiles())},
+        {"canOverWriteDir", Bool(canOverwriteDir())},
+        {"canCreateDir", Bool(canCreateDir())},
+        {"canCodeSign", Bool(canCodesign())},
+        {"bundleLibs", Bool(bundleLibs())},
+        {"bundleFrameworks", Bool(bundleFrameworks())},
+        {"frameworkDir", String(frameworkDir())},
+        {"createAppBundle", Bool(createAppBundle())},
+        {"verbose", Bool(verbose())},
+        {"libFolder", String(destFolder())},
+        {"prefixTools", String(prefixTools())},
+        {"appBundleContentsDir", String(appBundleContentsDir())},
+        {"inside_lib_path", String(inside_lib_path())},
+        {"inside_framework_path", String(inside_framework_path())}
+      }
+    );
+    return obj;
 }
 
 }
