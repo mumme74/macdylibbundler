@@ -32,6 +32,7 @@ THE SOFTWARE.
 #include <cstdio>
 #include <cstdlib>
 #include <sys/param.h>
+#include "Common.h"
 #include "Utils.h"
 #include "Settings.h"
 #include "DylibBundler.h"

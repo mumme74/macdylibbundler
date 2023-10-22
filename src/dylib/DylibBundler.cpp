@@ -36,6 +36,7 @@ THE SOFTWARE.
 #ifdef __linux
 #include <linux/limits.h>
 #endif
+#include "Common.h"
 #include "Utils.h"
 #include "Settings.h"
 #include "Dependency.h"

@@ -28,7 +28,7 @@ THE SOFTWARE.
 #include <sstream>
 #include <algorithm>
 #include "Settings.h"
-#include "Utils.h"
+#include "Common.h"
 
 //initialize the dylib search paths
 void initSearchPaths(){
@@ -72,6 +72,9 @@ void initAppBundleScripts(int argc, const char* argv[]) {
     std::vector<std::string> paths;
     const char delim = ':';
     tokenize(scPaths, &delim, &paths);
+std::cout << scPaths<< "\npaths:"<<std::endl;
+for(const auto& p:paths)
+    std::cout<<p<<std::endl;
 
     std::vector<std::string> skip{"__init__.py", "common.py"};
 
@@ -105,14 +108,14 @@ bool canOverwriteDir(){ return overwrite_dir; }
 bool canCreateDir(){ return create_dir; }
 bool canCodesign(){ return codesign; }
 
-void canOverwriteFiles(bool permission){ overwrite_files = permission; }
-void canOverwriteDir(bool permission){ overwrite_dir = permission; }
-void canCreateDir(bool permission){ create_dir = permission; }
-void canCodesign(bool permission){ codesign = permission; }
+void setCanOverwriteFiles(bool permission){ overwrite_files = permission; }
+void setCanOverwriteDir(bool permission){ overwrite_dir = permission; }
+void setCanCreateDir(bool permission){ create_dir = permission; }
+void setCanCodesign(bool permission){ codesign = permission; }
 
 bool bundleLibs_bool = false;
 bool bundleLibs(){ return bundleLibs_bool; }
-void bundleLibs(bool on){ bundleLibs_bool = on; }
+void setBundleLibs(bool on){ bundleLibs_bool = on; }
 
 std::string dest_folder_str = "./libs/";
 const std::string destFolder()
@@ -123,7 +126,7 @@ const std::string destFolder()
     return dest_folder_str;
 }
 
-void destFolder(const std::string& path)
+void setDestFolder(const std::string& path)
 {
     dest_folder_str = path;
     // fix path if needed so it ends with '/'
@@ -159,7 +162,7 @@ bool createAppBundle() { return create_app_bundle; }
 void setCreateAppBundle(bool on) {
     create_app_bundle = on;
     // automatically bundle libs and frameworks if app bundle
-    bundleLibs(true);
+    setBundleLibs(true);
     setBundleFrameworks(on);
 }
 
@@ -234,7 +237,7 @@ const std::string inside_lib_path(){
     }
     return inside_path_str;
 }
-void inside_lib_path(const std::string& p)
+void set_inside_lib_path(const std::string& p)
 {
     inside_path_str = p;
     // fix path if needed so it ends with '/'
@@ -297,7 +300,7 @@ int searchPathAmount(){ return searchPaths.size(); }
 const std::string searchPath(const int n){ return searchPaths[n]; }
 
 bool is_verbose = false;
-void verbose(bool on) { is_verbose = on; }
+void setVerbose(bool on) { is_verbose = on; }
 bool verbose() { return is_verbose; }
 
 bool bundle_frameworks = false;

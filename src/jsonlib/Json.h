@@ -25,6 +25,8 @@ THE SOFTWARE.
 #ifndef JSON_H
 #define JSON_H
 
+// this lib should not depend on anything in any other lib
+// except libc++
 #include <string>
 #include <sstream>
 #include <vector>

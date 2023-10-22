@@ -22,6 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
  */
 
+// this lib should not depend on anything in any other lib
+// except libc++
 #include <assert.h>
 #include <iostream>
 #include "Json.h"

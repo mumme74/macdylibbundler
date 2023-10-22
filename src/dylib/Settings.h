@@ -40,19 +40,19 @@ bool isPrefixIgnored(const std::string& prefix);
 void ignore_prefix(std::string prefix);
 
 bool canOverwriteFiles();
-void canOverwriteFiles(bool permission);
+void setCanOverwriteFiles(bool permission);
 
 bool canOverwriteDir();
-void canOverwriteDir(bool permission);
+void setCanOverwriteDir(bool permission);
 
 bool canCreateDir();
-void canCreateDir(bool permission);
+void setCanCreateDir(bool permission);
 
 bool canCodesign();
-void canCodesign(bool permission);
+void setCanCodesign(bool permission);
 
 bool bundleLibs();
-void bundleLibs(bool on);
+void setBundleLibs(bool on);
 /// If we should bundle frameworks
 bool bundleFrameworks();
 /// Set if we should bundle frameworks
@@ -61,7 +61,7 @@ void setBundleFrameworks(bool on);
 const std::string frameworkDir();
 
 const std::string destFolder();
-void destFolder(const std::string& path);
+void setDestFolder(const std::string& path);
 
 /// For cross compiling prefix otool and install_name_tool
 /// with prefix
@@ -105,7 +105,7 @@ const std::string outFileToFix(const int n);
 
 const std::string inside_lib_path();
 const std::string inside_framework_path();
-void inside_lib_path(const std::string& p);
+void set_inside_lib_path(const std::string& p);
 
 void addSearchPath(const std::string& path);
 int searchPathAmount();
@@ -113,7 +113,7 @@ const std::string searchPath(const int n);
 
 
 bool verbose();
-void verbose(bool on);
+void setVerbose(bool on);
 
 /// insert settings into rootObj
 std::unique_ptr<json::Object> toJson();

@@ -1,9 +1,10 @@
 # this lib should not depend on anything in any other lib
 # except libc++
+
 target_sources(
-  json
+  common
   PRIVATE
-    Json.cpp
+    Common.cpp
   PUBLIC
-    Json.h
+    Common.h
 )

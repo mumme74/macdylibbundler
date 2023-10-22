@@ -15,8 +15,10 @@ string(REPLACE "-O3" "-O2" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
 
 add_compile_options(-pipe -Wall -Wextra -Wpedantic)
 
+add_library(common STATIC "")
 add_library(json STATIC "")
 add_library(dylib STATIC "")
+add_library(argparser STATIC "")
 add_executable(dylibbundler "")
 
 add_subdirectory(src)

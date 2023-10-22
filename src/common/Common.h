@@ -2,6 +2,7 @@
 The MIT License (MIT)
 
 Copyright (c) 2014 Marianne Gagnon
+Copyright (c) 2023 Fredrik Johansson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,31 +21,33 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
- */
+*/
 
+#ifndef COMMON_H
+#define COMMON_H
 
-#ifndef _utils_h_
-#define _utils_h_
-
+// this lib should not depend on anything in any other lib
+// except libc++
 #include <string>
-#include <vector>
 #include <system_error>
+#include <vector>
 
-class Library;
 
-bool fileExists(const std::string& filename);
+/// Strip the first dir
+/// ie ./name -> name,
+///    \@rpath/dir/name -> dir/name
+std::string stripPrefix(const std::string& in);
+/// Strip the last '/'
+std::string stripLastSlash(const std::string& in);
+/// Trim trailing whitespace
+std::string rtrim(const std::string &in);
 
-void copyFile(const std::string& from, const std::string& to);
+void tokenize(const std::string& str, const char* delimiters,
+              std::vector<std::string>*);
 
-// executes a command in the native shell and returns output in string
-std::string system_get_output(const std::string& cmd);
+// print msg to stderr and exit
+void exitMsg(const std::string& msg,
+                 std::error_code err = std::error_code(),
+                 int exitCode = 1);
 
-// like 'system', runs a command on the system shell, but also prints the command to stdout.
-int systemp(const std::string& cmd);
-void changeInstallName(const std::string& binary_file, const std::string& old_name, const std::string& new_name);
-std::string getUserInputDirForFile(const std::string& filename);
-
-// sign `file` with an ad-hoc code signature: required for ARM (Apple Silicon) binaries
-void adhocCodeSign(const std::string& file);
-
-#endif
+#endif // COMMON_H
