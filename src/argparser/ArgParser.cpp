@@ -158,7 +158,7 @@ void splitOnEq(const char *argv, char first[], char second[], size_t SZ) {
       *p != '\0' && p-SZ < argv; // max 100 chars
       ++p)
   {
-    if (*p == '=')
+    if (*p == '=' && *second == '\0')
       buf = second;
     else {
       *buf = *p;
