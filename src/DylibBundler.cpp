@@ -44,6 +44,7 @@ namespace fs = std::filesystem;
 
 void mkAppBundleTemplate();
 void mkInfoPlist();
+void runPythonScripts_onAppBundle();
 
 std::vector<Dependency> deps;
 std::map<std::string, std::vector<Dependency> > deps_per_file;
@@ -263,10 +264,7 @@ void collectDependencies(const std::string& filename, std::vector<std::string>& 
     std::string output = system_get_output(cmd);
 
     if(output.find("can't open file")!=std::string::npos or output.find("No such file")!=std::string::npos or output.size()<1)
-    {
-        std::cerr << "Cannot find file " + filename + " to read its dependencies" << std::endl;
-        exit(1);
-    }
+        exitMsg(std::string("Cannot find file ") + filename + " to read its dependencies");
 
     // split output
     std::vector<std::string> raw_lines;
@@ -278,10 +276,8 @@ void collectDependencies(const std::string& filename, std::vector<std::string>& 
         if (is_prefix("cmd LC_LOAD_DYLIB") || is_prefix("cmd LC_REEXPORT_DYLIB"))
         {
             if (searching)
-            {
-                std::cerr << "\n\n/!\\ ERROR: Failed to find name before next cmd" << std::endl;
-                exit(1);
-            }
+                exitMsg("\n\n/!\\ ERROR: Failed to find name before next cmd");
+
             searching = true;
         }
         else if (searching)
@@ -373,10 +369,8 @@ void createDestDir()
         std::cout << "* Erasing old output directory " << dest_folder.c_str() << std::endl;
         std::string command = std::string("rm -r \"") + dest_folder + "\"";
         if( systemp( command ) != 0)
-        {
-            std::cerr << "\n\nError : An error occured while attempting to overwrite dest folder." << std::endl;
-            exit(1);
-        }
+            exitMsg("\n\nError : An error occurred while attempting to overwrite dest folder.");
+
         dest_exists = false;
     }
 
@@ -387,16 +381,11 @@ void createDestDir()
             std::cout << "* Creating output directory " << dest_folder.c_str() << std::endl;
             std::string command = std::string("mkdir -p \"") + dest_folder + "\"";
             if( systemp( command ) != 0)
-            {
-                std::cerr << "\n\nError : An error occured while creating dest folder." << std::endl;
-                exit(1);
-            }
+                exitMsg("\n\nError : An error occurred while creating dest folder.");
+
         }
         else
-        {
-            std::cerr << "\n\nError : Dest folder does not exist. Create it or pass the appropriate flag for automatic dest dir creation." << std::endl;
-            exit(1);
-        }
+            exitMsg("\n\nError : Dest folder does not exist. Create it or pass the appropriate flag for automatic dest dir creation.");
     }
 
 }
@@ -435,15 +424,21 @@ void doneWithDeps_go()
     const int fileToFixAmount = Settings::fileToFixAmount();
     for(int n=fileToFixAmount-1; n>=0; n--)
     {
+        auto outFile = Settings::outFileToFix(n),
+             srcFile = Settings::srcFileToFix(n);
         if (Settings::verbose())
-            std::cout << "\n* Processing " << Settings::srcFileToFix(n) << std::endl;
-        copyFile(Settings::srcFileToFix(n), Settings::outFileToFix(n)); // to set write permission or move
-        changeLibPathsOnFile(Settings::outFileToFix(n));
-        fixRpathsOnFile(Settings::outFileToFix(n), Settings::outFileToFix(n));
-        adhocCodeSign(Settings::outFileToFix(n));
+            std::cout << "\n* Processing " << srcFile
+                      << (outFile != srcFile ? std::string(" into ") + outFile : "")
+                      << std::endl;
+        copyFile(srcFile, outFile); // to set write permission or move
+        changeLibPathsOnFile(outFile);
+        fixRpathsOnFile(outFile, outFile);
+        adhocCodeSign(outFile);
         if (Settings::verbose())
-            std::cout << "\n-- Done Processing dependency for " << Settings::srcFileToFix(n) << std::endl;
+            std::cout << "\n-- Done Processing dependency for "
+                      << srcFile << std::endl;
     }
+
 }
 
 bool hasFrameworkDep() {
@@ -456,28 +451,44 @@ void mkAppBundleTemplate() {
     // see https://eclecticlight.co/2021/12/13/whats-in-that-app-a-guide-to-app-internal-structure/
     // setting up directory structure and symlinks
     auto curDir = fs::current_path();
-    auto bundleName = Settings::appBundleName();
-    if (fs::exists(bundleName)) {
-        if (Settings::canOverwriteDir())
-            fs::remove_all(bundleName);
-        else {
-            std::cout << "Can't overwrite " << bundleName << std::endl;
-            exit(1);
-        }
+    std::error_code err;
+    auto bundlePath = Settings::appBundlePath();
+    if (fs::exists(bundlePath)) {
+        if (Settings::canOverwriteDir()) {
+            fs::remove_all(bundlePath, err);
+            if (err)
+                exitMsg(std::string("Could not remove old bundle dir at: ")
+                  + bundlePath.string(), err);
+
+        } else
+            exitMsg(std::string("Can't overwrite ")
+               + bundlePath.string() + ", need --overwrite-dir switch.");
     }
     auto cont = Settings::appBundleContentsDir();
-    fs::create_directories(Settings::appBundleExecDir());
-    if (hasFrameworkDep())
-        fs::create_directory(cont + "/Frameworks");
-    auto appRootDir = bundleName + "/" + bundleName;
-    fs::create_directory(appRootDir);
-    fs::current_path(appRootDir);
-    fs::create_directory_symlink("../Contents", "Contents");
-    fs::current_path(curDir);
+    if (!fs::create_directories(Settings::appBundleExecDir(), err))
+        exitMsg("Could not create AppBundle dirs.", err);
+
+    if (hasFrameworkDep() && !fs::create_directory(cont / "Frameworks", err))
+        exitMsg("Could not create Frameworks dir in app bundle.", err);
+
+    auto appRootDir = bundlePath / bundlePath.filename();
+    fs::create_directory(appRootDir, err);
+    if (err)
+        exitMsg(std::string("Could not create dir ") + appRootDir.string(), err);
+
+    fs::current_path(appRootDir, err);
+    if (err)
+        exitMsg(std::string("Could not cd into ") + appRootDir.string(), err);
+
+    fs::create_directory_symlink("../Contents", "Contents", err);
+    if (err)
+        exitMsg("Could not create symlink Contents in app bundle.", err);
+
+    fs::current_path(curDir, err);
 
     // not sure if its needed, for old version macs
     std::ofstream pkgInfo;
-    pkgInfo.open(cont + "/Pkginfo");
+    pkgInfo.open(cont / "Pkginfo");
     pkgInfo << "APPL????";
     pkgInfo.close();
 
@@ -499,7 +510,7 @@ void mkInfoPlist() {
         std::cout << "* Creating a minimal Info.plist file." << std::endl
                   << "    See --app-info-plist option to customize" << std::endl;
 
-        std::string appName = Settings::appBundleName();
+        auto appName = Settings::appBundlePath().filename().string();
         appName = appName.substr(0, appName.find("."));
 
         plist << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -520,7 +531,7 @@ void mkInfoPlist() {
     }
 
     std::ofstream infoPlist;
-    infoPlist.open(Settings::appBundleContentsDir() + "/Info.plist");
+    infoPlist.open(Settings::appBundleContentsDir() / "Info.plist");
     infoPlist << plist.str();
     infoPlist.close();
 }

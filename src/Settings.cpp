@@ -182,14 +182,14 @@ std::vector<std::filesystem::path> all_appBundleScripts;
 bool scriptsPrevented = false;
 void setAppBundleScript(const std::filesystem::path script) {
     if (!std::filesystem::exists(script)) {
-        std::cerr << "Script " << script << "does not exist." << std::endl;
-        exit(1);
+        exitMsg(std::string("Script ") + script.string() + "does not exist.");
+
     } else if (script.extension() != ".py") {
-        std::cerr << "Script " << script << " ext:" << script.extension() << "is not a *.py script." << std::endl;
-        exit(1);
+        exitMsg(std::string("Script ") + script.string() + " ext:"
+                + script.extension().string() + "is not a *.py script.");
     } else if (scriptsPrevented) {
-        std::cerr << "Scripts are prevented, can't add " << script << std::endl;
-        exit(1);
+        exitMsg(std::string("Scripts are prevented, can't add ")
+                + script.string());
     }
     all_appBundleScripts.push_back(std::filesystem::path(script));
 }

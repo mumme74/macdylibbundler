@@ -28,6 +28,7 @@ THE SOFTWARE.
 
 #include <string>
 #include <vector>
+#include <system_error>
 
 class Library;
 
@@ -56,4 +57,8 @@ std::string getUserInputDirForFile(const std::string& filename);
 // sign `file` with an ad-hoc code signature: required for ARM (Apple Silicon) binaries
 void adhocCodeSign(const std::string& file);
 
+// print msg to stderr and exit
+void exitMsg(const std::string& msg,
+                 std::error_code err = std::error_code(),
+                 int exitCode = 1);
 #endif

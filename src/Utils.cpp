@@ -117,10 +117,8 @@ void copyFile(const string& from, const string& to)
     if( from != to && !override )
     {
         if(fileExists( to ))
-        {
-            cerr << "\n\nError : File " << to.c_str() << " already exists. Remove it or enable overwriting." << endl;
-            exit(1);
-        }
+            exitMsg(std::string("\n\nError : File ") + to +
+                    " already exists. Remove it or enable overwriting.");
     }
 
     string override_permission = string(override ? "-f " : "-n ");
@@ -128,18 +126,13 @@ void copyFile(const string& from, const string& to)
     // copy file to local directory
     string command = string("cp ") + override_permission + string("\"") + from + string("\" \"") + to + string("\"");
     if( from != to && systemp( command ) != 0 )
-    {
-        cerr << "\n\nError : An error occured while trying to copy file " << from << " to " << to << endl;
-        exit(1);
-    }
+        exitMsg(std::string("\n\nError : An error occurred while trying to copy file ")
+                + from + " to " + to);
 
     // give it write permission
     string command2 = string("chmod +w \"") + to + "\"";
     if( systemp( command2 ) != 0 )
-    {
-        cerr << "\n\nError : An error occured while trying to set write permissions on file " << to << endl;
-        exit(1);
-    }
+        exitMsg(std::string("\n\nError : An error occurred while trying to set write permissions on file ") + to);
 }
 
 std::string system_get_output(const std::string& cmd)
@@ -192,10 +185,8 @@ void changeInstallName(const std::string& binary_file, const std::string& old_na
 {
     std::string command = Settings::prefixTools() + "install_name_tool -change \"" + old_name + "\" \"" + new_name + "\" \"" + binary_file + "\"";
     if( systemp( command ) != 0 )
-    {
-        std::cerr << "\n\nError: An error occured while trying to fix dependencies of " << binary_file << std::endl;
-        exit(1);
-    }
+        exitMsg(std::string("\n\nError: An error occurred while trying to fix dependencies of ")
+                + binary_file);
 }
 
 std::string getUserInputDirForFile(const std::string& filename)
@@ -290,4 +281,14 @@ void adhocCodeSign(const std::string& file)
         systemp( command );
         runCommand(signCommand, "  * Error : An error occurred while applying ad-hoc signature to " + file);
     }
+}
+
+void exitMsg(const std::string& msg,
+                 std::error_code err /* = std::error_code()*/,
+                 int exitCode /* = 1*/)
+{
+    std::cerr << msg;
+    if (err) std::cerr << " " << err.message();
+    std::cerr << std::endl;
+    exit(exitCode);
 }

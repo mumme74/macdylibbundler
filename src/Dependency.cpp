@@ -45,6 +45,8 @@ void cleanupFramwork(const fs::path frameworkPath, std::vector<std::string> keep
     std::error_code err;
     keep.push_back("Versions");
     keep.push_back("Resources");
+    keep.push_back("Libraries");
+    keep.push_back("Helpers");
 
     auto clean = [&err](fs::path path, std::vector<std::string>&keep) {
         for (auto& entry : fs::directory_iterator(path)) {
@@ -75,10 +77,7 @@ void installId(const std::string& innerPath, const std::string& installPath){
     // Fix the lib's inner name
     std::string command = Settings::prefixTools() + "install_name_tool -id \"" + innerPath + "\" \"" + installPath + "\"";
     if( systemp( command ) != 0 )
-    {
-        std::cerr << "\n\nError : An error occured while trying to change identity of library " << installPath << std::endl;
-        exit(1);
-    }
+        exitMsg(std::string("\n\nError : An error occurred while trying to change identity of library ") + installPath);
 }
 
 // if some libs are missing prefixes, this will be set to true
