@@ -438,7 +438,6 @@ void doneWithDeps_go()
             std::cout << "\n-- Done Processing dependency for "
                       << srcFile << std::endl;
     }
-
 }
 
 bool hasFrameworkDep() {

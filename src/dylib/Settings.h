@@ -92,6 +92,8 @@ const std::filesystem::path appBundleContentsDir();
 /// Get the path to exec directory in bundle
 ///  example: name.app/Contents/MacOS
 const std::filesystem::path appBundleExecDir();
+/// Dir to app common scripts
+const std::filesystem::path& scriptDir();
 /// Path to Info.plist file
 const std::filesystem::path& infoPlist();
 bool setInfoPlist(const std::string& plist);

@@ -178,6 +178,7 @@ void setAppBundlePath(const std::string& path) {
     setCreateAppBundle(true);
 }
 
+std::filesystem::path _scriptDir;
 std::vector<std::filesystem::path> all_appBundleScripts;
 bool scriptsPrevented = false;
 void setAppBundleScript(const std::filesystem::path script) {
@@ -206,6 +207,9 @@ const std::filesystem::path appBundleContentsDir() {
 }
 const std::filesystem::path appBundleExecDir() {
     return appBundleContentsDir() / "MacOS" / "";
+}
+const std::filesystem::path& scriptDir() {
+    return _scriptDir;
 }
 
 std::filesystem::path plist_path;

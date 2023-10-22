@@ -12,6 +12,6 @@ enable_testing()
 
 add_executable(jsontest test_Json.cpp)
 target_link_libraries(jsontest gtest_main json)
-target_include_directories(jsontest PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(jsontest PUBLIC ${CMAKE_SOURCE_DIR}/src/jsonlib)
 add_test(NAME jsontest COMMAND $<TARGET_FILE:jsontest>
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

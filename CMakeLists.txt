@@ -9,6 +9,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(BUILD_TESTS "Build tests" OFF)
+option(USE_SCRIPTS "Run scripts after complete, neccesary Qt bundles for example" ON)
 
 string(REPLACE "-O3" "-O2" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
 
@@ -23,9 +24,14 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-add_custom_command(
-    TARGET dylibbundler
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/scripts
-        ${CMAKE_CURRENT_BINARY_DIR}/scripts
-)
+if(USE_SCRIPTS)
+    target_compile_definitions(dylib PUBLIC USE_SCRIPTS=1)
+    target_compile_definitions(dylibbundler PUBLIC USE_SCRIPTS=1)
+    add_custom_command(
+        TARGET dylibbundler PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/scripts
+            ${CMAKE_BINARY_DIR}/scripts
+    )
+endif()
+

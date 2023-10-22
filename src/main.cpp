@@ -31,6 +31,7 @@ THE SOFTWARE.
 
 #include "Utils.h"
 #include "DylibBundler.h"
+#include "ScriptRunner.h"
 
 /*
  TODO
@@ -56,8 +57,10 @@ void showHelp()
 
     std::cout << "-x, --fix-file <file to fix (executable or app plug-in)>" << std::endl;
     std::cout << "-a, --app <app bundle name, create a app bundle with this name (default name is -x name)>" << std::endl;
+#ifdef USE_SCRIPTS
     std::cout << "-as, --app-bundle-script <run this custom python script after bundle is complete, and after default scripts are runned>" << std::endl;
     std::cout << "--no-app-bundle-scripts <don't run app bundle scripts after creation of app bundle>" << std::endl;
+#endif // USE_SCRIPTS
     std::cout << "-pl, --app-info-plist <Optional path to a Info.plist to bundle into app>" << std::endl;
     std::cout << "-b, --bundle-deps" << std::endl;
     std::cout << "-f, --bundle-frameworks (Bundle frameworks)" << std::endl;
@@ -99,6 +102,7 @@ int main (int argc, const char * argv[])
             }
             continue;
         }
+#ifdef USE_SCRIPTS
         else if(strcmp(argv[i], "-as")==0 or strcmp(argv[i], "--app-bundle-script")==0)
         {
             if (argc > i+1 && argv[i+1][0]!='-') {
@@ -115,6 +119,7 @@ int main (int argc, const char * argv[])
             Settings::preventAppBundleScripts();
             continue;
         }
+#endif // USE_SCRIPTS
         else if (strcmp(argv[i],"-pl")==0 or strcmp(argv[i],"--app-info-plist")==0)
         {
             if (argc > i+1 && argv[i+1][0]!='-') {
@@ -227,6 +232,9 @@ int main (int argc, const char * argv[])
 
     collectSubDependencies();
     doneWithDeps_go();
+#ifdef USE_SCRIPTS
+    runPythonScripts_afterHook();
+#endif
 
     std::cout << "\n\n -- Processed " << amount << " file"
               << (amount > 1 ? "s" :"") << "." << std::endl;
