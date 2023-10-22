@@ -70,10 +70,6 @@ void initAppBundleScripts(int argc, const char* argv[]) {
         scPaths = pscPaths;
 
     auto paths = tokenize(scPaths, ":");
-std::cout << scPaths<< "\npaths:"<<std::endl;
-for(const auto& p:paths)
-    std::cout<<p<<std::endl;
-
     std::vector<std::string> skip{"__init__.py", "common.py"};
 
     for (auto &path : paths) {
