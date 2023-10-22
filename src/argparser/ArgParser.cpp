@@ -178,7 +178,7 @@ ArgParser::parse(int argc, const char* argv[])
   for(int i = 1; i < argc; ++i) {
     bool found = false;
     for(const auto& itm : m_items) {
-      const size_t SZ = 100;
+      const size_t SZ = 5000; // how long can a path be?
       char first[SZ] = {}, second[SZ] = {};
       splitOnEq(argv[i], first, second, SZ);
 
