@@ -150,23 +150,6 @@ ArgParser::ArgParser(std::initializer_list<ArgItem> items) :
 {
 }
 
-
-// parse --switch=vlu, split on '='
-void splitOnEq(const char *argv, char first[], char second[], size_t SZ) {
-  char *buf = first;
-  for (const char *p = argv;
-      *p != '\0' && p-SZ < argv; // max 100 chars
-      ++p)
-  {
-    if (*p == '=' && *second == '\0')
-      buf = second;
-    else {
-      *buf = *p;
-      ++buf;
-    }
-  }
-}
-
 void
 ArgParser::parse(int argc, const char* argv[])
 {
@@ -178,11 +161,12 @@ ArgParser::parse(int argc, const char* argv[])
   for(int i = 1; i < argc; ++i) {
     bool found = false;
     for(const auto& itm : m_items) {
-      const size_t SZ = 5000; // how long can a path be?
-      char first[SZ] = {}, second[SZ] = {};
-      splitOnEq(argv[i], first, second, SZ);
+      char buf[5000];// how long can a path be?
+      strcpy(buf, argv[i]);
+      const char *first = strtok(buf, "="),
+                 *second = strtok(nullptr, "=");
 
-      const char *next = *second != '\0' ? second :
+      const char *next = second != nullptr ? second :
                     i+1 < argc && *argv[i+1]!='-' ? argv[i+1] : nullptr;
 
       int tookArgs = itm.run(first, next);
