@@ -149,7 +149,7 @@ std::string getUserInputDirForFile(const std::string& filename)
         if( fileExists( searchPath+filename ) )
         {
             std::cerr << (searchPath+filename) << " was found. /!\\ DYLIBBUNDLER MAY NOT CORRECTLY HANDLE THIS DEPENDENCY: Manually check the executable with '"
-                      << Settings::prefixTools() << "otool -L'" << std::endl;
+                      << Settings::otoolCmd() << " -L'" << std::endl;
             return searchPath;
         }
     }
@@ -174,7 +174,7 @@ std::string getUserInputDirForFile(const std::string& filename)
         else
         {
             std::cerr << (prefix+filename) << " was found. /!\\ DYLIBBUNDLER MAY NOT CORRECTLY HANDLE THIS DEPENDENCY: Manually check the executable with '"
-                      << Settings::prefixTools() + "otool -L'" << std::endl;
+                      << Settings::otoolCmd() + " -L'" << std::endl;
             Settings::addSearchPath(prefix);
             return prefix;
         }
@@ -230,4 +230,19 @@ void adhocCodeSign(const std::string& file)
         systemp( command );
         runCommand(signCommand, "  * Error : An error occurred while applying ad-hoc signature to " + file);
     }
+}
+
+bool isExecutable(std::filesystem::path path)
+{
+    namespace fs = std::filesystem;
+    using fs::perms;
+    auto perm = fs::status(path).permissions();
+    if (fs::is_regular_file(path) &&
+        ((perms::none != (perm & perms::owner_exec)) ||
+            (perms::none != (perm & perms::group_exec)) ||
+            (perms::none != (perm & perms::others_exec)))
+    ) {
+        return true;
+    }
+    return false;
 }

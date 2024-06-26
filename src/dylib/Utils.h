@@ -29,6 +29,10 @@ THE SOFTWARE.
 #include <string>
 #include <vector>
 #include <system_error>
+#include <iostream>
+#include <fstream>
+#include <filesystem>
+#include <array>
 
 class Library;
 
@@ -36,15 +40,18 @@ bool fileExists(const std::string& filename);
 
 void copyFile(const std::string& from, const std::string& to);
 
-// executes a command in the native shell and returns output in string
+/// executes a command in the native shell and returns output in string
 std::string system_get_output(const std::string& cmd);
 
-// like 'system', runs a command on the system shell, but also prints the command to stdout.
+/// like 'system', runs a command on the system shell, but also prints the command to stdout.
 int systemp(const std::string& cmd);
 void changeInstallName(const std::string& binary_file, const std::string& old_name, const std::string& new_name);
 std::string getUserInputDirForFile(const std::string& filename);
 
-// sign `file` with an ad-hoc code signature: required for ARM (Apple Silicon) binaries
+/// sign `file` with an ad-hoc code signature: required for ARM (Apple Silicon) binaries
 void adhocCodeSign(const std::string& file);
 
-#endif
+/// checks if file is executable
+bool isExecutable(std::filesystem::path path);
+
+#endif // _utils_h_

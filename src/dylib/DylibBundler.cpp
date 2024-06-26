@@ -84,7 +84,7 @@ void collectRpaths(const std::string& filename)
         return;
     }
 
-    std::string cmd = Settings::prefixTools() + "otool -l \"" + filename + "\"";
+    std::string cmd = Settings::otoolCmd() + " -l \"" + filename + "\"";
     std::string output = system_get_output(cmd);
 
     auto lc_lines = tokenize(output, "\n");
@@ -185,10 +185,12 @@ std::string searchFilenameInRpaths(const std::string& rpath_file, const std::str
         if (fullpath.empty())
         {
             std::cerr << "\n/!\\ WARNING : can't get path for '" << rpath_file << "'\n";
-            fullpath = getUserInputDirForFile(suffix) + suffix;
+            auto dir = getUserInputDirForFile(suffix);
+            fullpath = dir + suffix;
             if (realpath(fullpath.c_str(), buffer))
             {
                 fullpath = buffer;
+                Settings::addSearchPath(dir);
             }
         }
     }
@@ -213,7 +215,7 @@ void fixRpathsOnFile(const std::string& original_file, const std::string& file_t
 
     for (size_t i=0; i < rpaths_to_fix.size(); ++i)
     {
-        std::string command = Settings::prefixTools() + "install_name_tool -rpath \"" +
+        std::string command = Settings::installNameToolCmd() + " -rpath \"" +
                 rpaths_to_fix[i] + "\" \"" + Settings::inside_lib_path() + "\" \"" + file_to_fix + "\"";
         if ( systemp(command) != 0)
         {
@@ -260,7 +262,7 @@ void addDependency(const std::string& path, const std::string& filename)
 void collectDependencies(const std::string& filename, std::vector<std::string>& lines)
 {
     // execute "otool -l" on the given file and collect the command's output
-    std::string cmd = Settings::prefixTools() + "otool -l \"" + filename + "\"";
+    std::string cmd = Settings::otoolCmd() + " -l \"" + filename + "\"";
     std::string output = system_get_output(cmd);
 
     if(output.find("can't open file")!=std::string::npos or output.find("No such file")!=std::string::npos or output.size()<1)
