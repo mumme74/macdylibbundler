@@ -90,8 +90,9 @@ Dependency::Dependency(const std::string& path, const std::string& dependent_fil
 {
     auto pathTrim = fs::path(rtrim(path));
     std::error_code err;
-    if (isRpath(pathTrim)) {
-        original_file = searchFilenameInRpaths(pathTrim, dependent_file);
+    if (DylibBundler::isRpath(pathTrim)) {
+        original_file = DylibBundler::instance()->
+            searchFilenameInRpaths(pathTrim, dependent_file);
         canonical_file = original_file;
     } else {
       original_file = pathTrim;
@@ -307,4 +308,25 @@ void Dependency::fixFileThatDependsOnMe(const std::string& file_to_fix)
             changeInstallName(file_to_fix, symlinks[n], getInnerPath());
         }
     }
+}
+
+Json::VluType
+Dependency::toJson() const
+{
+    using namespace Json;
+
+    Array links{};
+    for (const auto& link : symlinks)
+        links.push(String(link));
+
+    auto obj = std::make_unique<Object>(
+      std::initializer_list<std::pair<std::string, VluBase>>{
+        {"original_file", String(original_file)},
+        {"canonical_file", String(canonical_file)},
+        {"prefix", String(prefix)},
+        {"symlinks", links},
+        {"isFramework", Bool(framework)}
+      }
+    );
+    return obj;
 }

@@ -106,14 +106,15 @@ int main (int argc, const char * argv[])
     }
 
     std::cout << "* Collecting dependencies\n";
+    DylibBundler bundler{};
 
     const int amount = Settings::fileToFixAmount();
     for(int n=0; n<amount; n++)
-        collectDependencies(Settings::srcFileToFix(n));
+        bundler.collectDependencies(Settings::srcFileToFix(n));
 
-    collectSubDependencies();
+    bundler.collectSubDependencies();
     if (!Settings::shouldOnlyRunScripts())
-      doneWithDeps_go();
+      bundler.doneWithDeps_go();
 #ifdef USE_SCRIPTS
     runPythonScripts_afterHook();
 #endif

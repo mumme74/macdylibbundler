@@ -28,6 +28,7 @@ THE SOFTWARE.
 
 #include <string>
 #include <vector>
+#include "Json.h"
 
 class Dependency
 {
@@ -69,6 +70,8 @@ public:
     // Compares the given dependency with this one. If both refer to the same file,
     // it returns true and merges both entries into one.
     bool mergeIfSameAs(Dependency& dep2);
+
+    Json::VluType toJson() const;
 };
 
 

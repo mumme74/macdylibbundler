@@ -26,12 +26,39 @@ THE SOFTWARE.
 #define _crawler_
 
 #include <string>
+#include <vector>
+#include "Dependency.h"
 
-void collectDependencies(const std::string& filename);
-void collectSubDependencies();
-void doneWithDeps_go();
-bool isRpath(const std::string& path);
-std::string searchFilenameInRpaths(const std::string& rpath_file, const std::string& dependent_file);
-std::string searchFilenameInRpaths(const std::string& rpath_dep);
+class DylibBundler {
+public:
+    DylibBundler();
+    ~DylibBundler();
+    static DylibBundler* instance();
+
+    void collectDependencies(const std::string& filename);
+    void collectSubDependencies();
+    void doneWithDeps_go();
+    static bool isRpath(const std::string& path);
+    std::string searchFilenameInRpaths(const std::string& rpath_file, const std::string& dependent_file);
+    std::string searchFilenameInRpaths(const std::string& rpath_dep);
+    bool hasFrameworkDep();
+
+private:
+    void changeLibPathsOnFile(std::string file_to_fix);
+    void collectRpaths(const std::string& filename);
+    void fixRpathsOnFile(
+      const std::string& original_file, const std::string& file_to_fix);
+    void addDependency(
+      const std::string& path, const std::string& filename);
+    void collectDependencies(
+      const std::string& filename, std::vector<std::string>& lines);
+
+    std::vector<Dependency> m_deps;
+    std::map<std::string, std::vector<Dependency> > m_deps_per_file;
+    std::map<std::string, bool> m_deps_collected;
+    std::map<std::string, std::vector<std::string> > m_rpaths_per_file;
+    std::map<std::string, std::string> m_rpath_to_fullpath;
+    static DylibBundler *s_instance;
+};
 
 #endif

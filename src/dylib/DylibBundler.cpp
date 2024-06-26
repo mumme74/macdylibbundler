@@ -40,22 +40,39 @@ THE SOFTWARE.
 #include "Utils.h"
 #include "Settings.h"
 #include "Dependency.h"
+#include <cassert>
 
 namespace fs = std::filesystem;
 
 void mkAppBundleTemplate();
 void mkInfoPlist();
-void runPythonScripts_onAppBundle();
 
-std::vector<Dependency> deps;
-std::map<std::string, std::vector<Dependency> > deps_per_file;
-std::map<std::string, bool> deps_collected;
-std::map<std::string, std::vector<std::string> > rpaths_per_file;
-std::map<std::string, std::string> rpath_to_fullpath;
-
-void changeLibPathsOnFile(std::string file_to_fix)
+DylibBundler::DylibBundler():
+    m_deps{}, m_deps_per_file{},
+    m_deps_collected{},
+    m_rpaths_per_file{},
+    m_rpath_to_fullpath{}
 {
-    if (deps_collected.find(file_to_fix) == deps_collected.end())
+    assert(DylibBundler::s_instance == nullptr &&
+         "Should only have one instance");
+    DylibBundler::s_instance = this;
+}
+
+DylibBundler::~DylibBundler()
+{}
+
+DylibBundler*
+DylibBundler::instance()
+{
+    return DylibBundler::s_instance;
+}
+
+DylibBundler *DylibBundler::s_instance = nullptr;
+
+void
+DylibBundler::changeLibPathsOnFile(std::string file_to_fix)
+{
+    if (m_deps_collected.find(file_to_fix) == m_deps_collected.end())
     {
         std::cout << "    ";
         collectDependencies(file_to_fix);
@@ -63,7 +80,7 @@ void changeLibPathsOnFile(std::string file_to_fix)
     }
     std::cout << "  * Fixing dependencies on " << file_to_fix.c_str() << std::endl;
 
-    std::vector<Dependency> deps_in_file = deps_per_file[file_to_fix];
+    std::vector<Dependency> deps_in_file = m_deps_per_file[file_to_fix];
     const int dep_amount = deps_in_file.size();
     for(int n=0; n<dep_amount; n++)
     {
@@ -71,12 +88,14 @@ void changeLibPathsOnFile(std::string file_to_fix)
     }
 }
 
-bool isRpath(const std::string& path)
+bool // static
+DylibBundler::isRpath(const std::string& path)
 {
     return path.find("@rpath") == 0 || path.find("@loader_path") == 0;
 }
 
-void collectRpaths(const std::string& filename)
+void
+DylibBundler::collectRpaths(const std::string& filename)
 {
     if (!fileExists(filename))
     {
@@ -107,7 +126,7 @@ void collectRpaths(const std::string& filename)
             }
             start_pos += 5;
             std::string rpath = line.substr(start_pos, end_pos - start_pos);
-            rpaths_per_file[filename].push_back(rpath);
+            m_rpaths_per_file[filename].push_back(rpath);
             read_rpath = false;
             continue;
         }
@@ -120,7 +139,8 @@ void collectRpaths(const std::string& filename)
     }
 }
 
-std::string searchFilenameInRpaths(const std::string& rpath_file, const std::string& dependent_file)
+std::string
+DylibBundler::searchFilenameInRpaths(const std::string& rpath_file, const std::string& dependent_file)
 {
     char buffer[PATH_MAX];
     std::string fullpath;
@@ -144,7 +164,7 @@ std::string searchFilenameInRpaths(const std::string& rpath_file, const std::str
             if (realpath(path_to_check.c_str(), buffer))
             {
                 fullpath = buffer;
-                rpath_to_fullpath[rpath_file] = fullpath;
+                m_rpath_to_fullpath[rpath_file] = fullpath;
                 return true;
             }
         }
@@ -152,20 +172,20 @@ std::string searchFilenameInRpaths(const std::string& rpath_file, const std::str
     };
 
     // fullpath previously stored
-    if (rpath_to_fullpath.find(rpath_file) != rpath_to_fullpath.end())
+    if (m_rpath_to_fullpath.find(rpath_file) != m_rpath_to_fullpath.end())
     {
-        fullpath = rpath_to_fullpath[rpath_file];
+        fullpath = m_rpath_to_fullpath[rpath_file];
     }
     else if (!check_path(rpath_file))
     {
-        for (auto rpath : rpaths_per_file[dependent_file])
+        for (auto rpath : m_rpaths_per_file[dependent_file])
         {
             if (rpath[rpath.size()-1] != '/') rpath += "/";
             if (check_path(rpath+suffix)) break;
         }
-        if (rpath_to_fullpath.find(rpath_file) != rpath_to_fullpath.end())
+        if (m_rpath_to_fullpath.find(rpath_file) != m_rpath_to_fullpath.end())
         {
-            fullpath = rpath_to_fullpath[rpath_file];
+            fullpath = m_rpath_to_fullpath[rpath_file];
         }
     }
 
@@ -198,17 +218,19 @@ std::string searchFilenameInRpaths(const std::string& rpath_file, const std::str
     return fullpath;
 }
 
-std::string searchFilenameInRpaths(const std::string& rpath_dep)
+std::string
+DylibBundler::searchFilenameInRpaths(const std::string& rpath_dep)
 {
     return searchFilenameInRpaths(rpath_dep, rpath_dep);
 }
 
-void fixRpathsOnFile(const std::string& original_file, const std::string& file_to_fix)
+void
+DylibBundler::fixRpathsOnFile(const std::string& original_file, const std::string& file_to_fix)
 {
     if (Settings::createAppBundle()) return; // don't change @rpath on app bundles
     std::vector<std::string> rpaths_to_fix;
-    std::map<std::string, std::vector<std::string> >::iterator found = rpaths_per_file.find(original_file);
-    if (found != rpaths_per_file.end())
+    std::map<std::string, std::vector<std::string> >::iterator found = m_rpaths_per_file.find(original_file);
+    if (found != m_rpaths_per_file.end())
     {
         rpaths_to_fix = found->second;
     }
@@ -224,20 +246,21 @@ void fixRpathsOnFile(const std::string& original_file, const std::string& file_t
     }
 }
 
-void addDependency(const std::string& path, const std::string& filename)
+void
+DylibBundler::addDependency(const std::string& path, const std::string& filename)
 {
     Dependency dep(path, filename);
 
     // we need to check if this library was already added to avoid duplicates
     bool in_deps = false;
-    const int dep_amount = deps.size();
+    const int dep_amount = m_deps.size();
     for(int n=0; n<dep_amount; n++)
     {
-        if(dep.mergeIfSameAs(deps[n])) in_deps = true;
+        if(dep.mergeIfSameAs(m_deps[n])) in_deps = true;
     }
 
-    // check if this library was already added to |deps_per_file[filename]| to avoid duplicates
-    std::vector<Dependency> deps_in_file = deps_per_file[filename];
+    // check if this library was already added to |m_deps_per_file[filename]| to avoid duplicates
+    std::vector<Dependency> deps_in_file = m_deps_per_file[filename];
     bool in_deps_per_file = false;
     const int deps_in_file_amount = deps_in_file.size();
     for(int n=0; n<deps_in_file_amount; n++)
@@ -252,14 +275,15 @@ void addDependency(const std::string& path, const std::string& filename)
         return;
     }
 
-    if(!in_deps) deps.push_back(dep);
-    if(!in_deps_per_file) deps_per_file[filename].push_back(dep);
+    if(!in_deps) m_deps.push_back(dep);
+    if(!in_deps_per_file) m_deps_per_file[filename].push_back(dep);
 }
 
 /*
  *  Fill vector 'lines' with dependencies of given 'filename'
  */
-void collectDependencies(const std::string& filename, std::vector<std::string>& lines)
+void
+DylibBundler::collectDependencies(const std::string& filename, std::vector<std::string>& lines)
 {
     // execute "otool -l" on the given file and collect the command's output
     std::string cmd = Settings::otoolCmd() + " -l \"" + filename + "\"";
@@ -293,9 +317,10 @@ void collectDependencies(const std::string& filename, std::vector<std::string>& 
     }
 }
 
-void collectDependencies(const std::string& filename)
+void
+DylibBundler::collectDependencies(const std::string& filename)
 {
-    if (deps_collected.find(filename) != deps_collected.end()) return;
+    if (m_deps_collected.find(filename) != m_deps_collected.end()) return;
 
     collectRpaths(filename);
 
@@ -331,21 +356,22 @@ void collectDependencies(const std::string& filename)
         addDependency(dep_path, filename);
     }
 
-    deps_collected[filename] = true;
+    m_deps_collected[filename] = true;
 }
 
-void collectSubDependencies()
+void
+DylibBundler::collectSubDependencies()
 {
     // print status to user
-    size_t dep_amount = deps.size();
+    size_t dep_amount = m_deps.size();
 
     // recursively collect each dependencie's dependencies
     while(true)
     {
-        dep_amount = deps.size();
+        dep_amount = m_deps.size();
         for (size_t n=0; n<dep_amount; n++)
         {
-            std::string original_path = deps[n].getOriginalPath();
+            std::string original_path = m_deps[n].getOriginalPath();
             Settings::verbose() ? std::cout << "* SubDependencies for: " + original_path << std::endl : std::cout << ".";
             fflush(stdout);
             if (isRpath(original_path)) original_path = searchFilenameInRpaths(original_path);
@@ -353,9 +379,18 @@ void collectSubDependencies()
             collectDependencies(original_path);
         }
 
-        if(deps.size() == dep_amount) break; // no more dependencies were added on this iteration, stop searching
+        if(m_deps.size() == dep_amount) break; // no more dependencies were added on this iteration, stop searching
     }
 }
+
+bool
+DylibBundler::hasFrameworkDep() {
+    return m_deps.end() != std::find_if(m_deps.begin(), m_deps.end(),[](Dependency &dep){
+        return dep.isFramework();
+    });
+}
+
+// -----------------------------------------------------------------------
 
 void createDestDir()
 {
@@ -391,14 +426,15 @@ void createDestDir()
 
 }
 
-void doneWithDeps_go()
+void
+DylibBundler::doneWithDeps_go()
 {
     std::cout << std::endl;
-    const int dep_amount = deps.size();
+    const int dep_amount = m_deps.size();
     // print info to user
     for(int n=0; n<dep_amount; n++)
     {
-        deps[n].print();
+        m_deps[n].print();
     }
     std::cout << std::endl;
 
@@ -412,13 +448,13 @@ void doneWithDeps_go()
         for(int n=dep_amount-1; n>=0; n--)
         {
             if (Settings::verbose())
-                std::cout << "\n* Processing dependency " << deps[n].getInstallPath() << std::endl;
-            deps[n].copyYourself();
-            changeLibPathsOnFile(deps[n].getInstallPath());
-            fixRpathsOnFile(deps[n].getOriginalPath(), deps[n].getInstallPath());
-            adhocCodeSign(deps[n].getInstallPath());
+                std::cout << "\n* Processing dependency " << m_deps[n].getInstallPath() << std::endl;
+            m_deps[n].copyYourself();
+            changeLibPathsOnFile(m_deps[n].getInstallPath());
+            fixRpathsOnFile(m_deps[n].getOriginalPath(), m_deps[n].getInstallPath());
+            adhocCodeSign(m_deps[n].getInstallPath());
             if (Settings::verbose())
-                std::cout << "\n-- Done Processing dependency for " << deps[n].getInnerPath() << std::endl;
+                std::cout << "\n-- Done Processing dependency for " << m_deps[n].getInnerPath() << std::endl;
         }
     }
 
@@ -439,12 +475,6 @@ void doneWithDeps_go()
             std::cout << "\n-- Done Processing dependency for "
                       << srcFile << std::endl;
     }
-}
-
-bool hasFrameworkDep() {
-    return deps.end() != std::find_if(deps.begin(), deps.end(),[](Dependency &dep){
-        return dep.isFramework();
-    });
 }
 
 void mkAppBundleTemplate() {
@@ -468,7 +498,8 @@ void mkAppBundleTemplate() {
     if (!fs::create_directories(Settings::appBundleExecDir(), err))
         exitMsg("Could not create AppBundle dirs.", err);
 
-    if (hasFrameworkDep() && !fs::create_directory(cont / "Frameworks", err))
+    if (DylibBundler::instance()->hasFrameworkDep() &&
+        !fs::create_directory(cont / "Frameworks", err))
         exitMsg("Could not create Frameworks dir in app bundle.", err);
 
     auto appRootDir = bundlePath / bundlePath.filename();
