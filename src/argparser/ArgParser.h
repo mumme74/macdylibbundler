@@ -22,8 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-#ifndef ARG_PARSER_H
-#define ARG_PARSER_H
+#ifndef SRC_ARGPARSER_ARGPARSER_H_
+#define SRC_ARGPARSER_ARGPARSER_H_
 
 #include <vector>
 #include <string>
@@ -31,7 +31,7 @@ THE SOFTWARE.
 #include <functional>
 
 class ArgItem {
-public:
+ public:
   typedef const char* CSTR;
   enum Options { VoidArg, VluTrue, VluFalse, OptVluString, ReqVluString };
 
@@ -58,7 +58,7 @@ public:
   CSTR description() const { return m_description; }
   Options option() const { return m_option; }
 
-private:
+ private:
   CSTR m_short;
   CSTR m_long;
   CSTR m_description;
@@ -71,11 +71,11 @@ private:
 class ArgParser {
   std::vector<ArgItem> m_items;
   const char* m_programName, *m_programPath;
-public:
+ public:
   ArgParser(std::initializer_list<ArgItem>);
   void parse(int argc, const char* argv[]);
   void help(const char* indent = "") const;
   const char* programName() const { return m_programName; }
 };
 
-#endif
+#endif  // SRC_ARGPARSER_ARGPARSER_H_

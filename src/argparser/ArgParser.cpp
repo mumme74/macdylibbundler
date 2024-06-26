@@ -40,8 +40,7 @@ ArgItem::ArgItem(
   m_callbackStr(nullptr),
   m_callbackBool(nullptr),
   m_option(VoidArg)
-{
-}
+{}
 
 ArgItem::ArgItem(
   CSTR shSwitch, CSTR longSwitch, CSTR description,
@@ -162,7 +161,7 @@ ArgParser::parse(int argc, const char* argv[])
     bool found = false;
     for(const auto& itm : m_items) {
       char buf[5000];// how long can a path be?
-      strcpy(buf, argv[i]);
+      strncpy(buf, argv[i], sizeof(buf)/sizeof(buf[0])-1);
       const char *first = strtok(buf, "="),
                  *second = strtok(nullptr, "=");
 
