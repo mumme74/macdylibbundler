@@ -62,6 +62,7 @@ ArgParser args {
     Settings::setAppBundleScript, ArgItem::ReqVluString
   },
   {nullptr, "no-app-bundle-scripts","Prevent app bundle scripts from running",Settings::preventAppBundleScripts},
+  {nullptr, "only-scripts","Don't do anything more than running scripts",Settings::setOnlyRunScripts},
 #endif // USE_SCRIPTS
   {"pl","app-info-plist","Optional path to a Info.plist to bundle into app", Settings::setInfoPlist, ArgItem::ReqVluString},
   {"b","bundle-deps","Bundle library dependencies.", Settings::setBundleLibs},
@@ -77,6 +78,8 @@ ArgParser args {
   {"ns","no-codesign","disables ad-hoc codesigning",Settings::setCanCodesign, ArgItem::VluFalse},
   {"i","ignore","Location to ignore (will ignore libraries in this directory)", Settings::ignore_prefix,ArgItem::ReqVluString},
   {"pt","prefix-tools","'prefix' otool and install_name_tool with prefix (for cross compilation)", Settings::setPrefixTools,ArgItem::ReqVluString},
+  {nullptr, "otool-path","give the path to otool or llvm-otool, useful when tools not in path", Settings::setOToolPath,ArgItem::ReqVluString},
+  {nullptr, "install-name-tool-path","absolute path to install_name_tool, useful when not in path",Settings::setInstallNameToolPath,ArgItem::ReqVluString},
   {"cs","codesign","path to codesigning binary, might be zsign for example",Settings::setCodeSign,ArgItem::ReqVluString},
   {"v","verbose","verbose mode",Settings::setVerbose},
   {"h","help","Show help",showHelp}
@@ -88,6 +91,7 @@ void showHelp() {
   args.help();
   std::cout << "\n\nEnvironment variable DYLIBBUNDLER_SCRIPTS_PATH="
             << "<path to dir with custom python scripts runned after bundle is done, separated by ':'>" << std::endl;
+  exit(0);
 }
 
 int main (int argc, const char * argv[])
@@ -101,14 +105,15 @@ int main (int argc, const char * argv[])
         exit(0);
     }
 
-    std::cout << "* Collecting dependencies"; fflush(stdout);
+    std::cout << "* Collecting dependencies\n";
 
     const int amount = Settings::fileToFixAmount();
     for(int n=0; n<amount; n++)
         collectDependencies(Settings::srcFileToFix(n));
 
     collectSubDependencies();
-    doneWithDeps_go();
+    if (!Settings::shouldOnlyRunScripts())
+      doneWithDeps_go();
 #ifdef USE_SCRIPTS
     runPythonScripts_afterHook();
 #endif
