@@ -35,5 +35,12 @@ if(USE_SCRIPTS)
             ${CMAKE_SOURCE_DIR}/scripts
             ${CMAKE_BINARY_DIR}/scripts
     )
+    add_custom_target(scripts)
+    add_custom_command(
+        TARGET scripts PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/scripts
+            ${CMAKE_BINARY_DIR}/scripts
+    )
 endif()
 

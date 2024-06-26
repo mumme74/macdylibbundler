@@ -205,7 +205,8 @@ bool scriptLogic(
 bool parentRead(FILE *in, std::string& buf) {
     bigendian_t sz{0u};
     if (fread(sz.u32arr, 1, 4, in) != 4) {
-        std::cerr << "Failed to read size from script\n";
+        if (errno != EINVAL)
+            std::cerr << "Failed to read size from script\n";
         return false;
     }
     auto siz = sz.u32native();
@@ -219,15 +220,14 @@ bool parentRead(FILE *in, std::string& buf) {
 }
 
 bool parentWrite(FILE *out, std::string_view str) {
-    std::cout << "Sending: " << str << "\n\n";
+    //std::cout << "Sending: " << str << "\n\n";
 
     assert(str.size() < UINT32_MAX && "To big string send to script");
     bigendian_t sz{static_cast<uint32_t>(str.size())};
 
-    if ((fwrite(&sz.u32arr, 4, 1, out) != 4) ||
+    if ((fwrite(&sz.u32arr, 1, 4, out) != 4) ||
         (fwrite(str.data(), sizeof(char),
-                str.size(), out) != str.size()) ||
-        (fputc('\n', out) == -1)
+                str.size(), out) != str.size())
     ) {
         std::cerr << "Failed to write n:"<<str.size()
                     << " to script\n" << str << "\n";
