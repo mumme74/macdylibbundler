@@ -27,6 +27,9 @@ THE SOFTWARE.
 #include <vector>
 #include <sstream>
 #include <algorithm>
+#include <regex>
+#include <unistd.h>
+#include <sys/wait.h>
 #include "Settings.h"
 #include "Common.h"
 #include "Utils.h"
@@ -85,6 +88,45 @@ void initAppBundleScripts(int argc, const char* argv[]) {
     }
 }
 
+std::string lookUpOTool(std::string_view prefix) {
+    static std::string oToolCmd = "";
+    if (oToolCmd.size())
+        return oToolCmd;
+
+    auto testCmd = [&](std::string_view cmd)->bool {
+        FILE* proc = popen(cmd.data(), "r");
+        if (proc == nullptr)
+            return false;
+        int wstatus;
+        if (wait(&wstatus) == -1)
+            return false;
+        if (WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0) {
+            oToolCmd = cmd;
+            pclose(proc);
+            return true;
+        }
+        return false;
+    };
+
+    if (testCmd(std::string{prefix}+"otool"))
+        return oToolCmd;
+    if (testCmd(std::string{prefix}+"llvm-otool"))
+        return oToolCmd;
+    if (testCmd("llvm-strip -V")) {
+        auto output = system_get_output("llvm-strip -V");
+        std::regex re{"version\\s+(\\d+)"};
+        std::smatch match;
+        if (std::regex_search(output, match, re)) {
+            if (testCmd(std::string{"llvm-otool-"} + match.str(1))) {
+                std::cout << oToolCmd << ": found\n";
+                return oToolCmd;
+            }
+        }
+    }
+
+    std::cerr << "**Failed to find either otool or llvm-otool!";
+    exit(1);
+}
 
 namespace Settings
 {
@@ -152,7 +194,7 @@ void setInstallNameToolPath(const std::string& installNamePath)
 const std::string otoolCmd()
 {
     if (otool_cmd.empty())
-        return prefixTools_str + "otool";
+        return lookUpOTool(prefixTools_str);
     return otool_cmd;
 }
 /// get cmd to use for install_name_tool
