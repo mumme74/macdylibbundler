@@ -32,6 +32,7 @@ THE SOFTWARE.
 #include <vector>
 #include <map>
 #include <memory>
+#include <exception>
 
 /*
 Valid Json types
@@ -43,7 +44,7 @@ boolean.
 null.
 */
 
-namespace json {
+namespace Json {
 
 class VluBase;
 class Undefined;
@@ -56,7 +57,7 @@ class Object;
 
 typedef std::unique_ptr<VluBase> VluType;
 typedef std::vector<VluType> ArrType;
-typedef std::map<const std::string, json::VluType> ObjType;
+typedef std::map<const std::string, Json::VluType> ObjType;
 
 class VluBase {
 public:
@@ -245,6 +246,6 @@ public:
 VluType parse(const std::string& jsnStr);
 VluType parse(std::stringstream& jsn);
 
-}; // namespace json
+}; // namespace Json
 
 #endif // JSON_H

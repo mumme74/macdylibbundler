@@ -128,7 +128,7 @@ bool verbose();
 void setVerbose(bool on);
 
 /// insert settings into rootObj
-std::unique_ptr<json::Object> toJson();
+std::unique_ptr<Json::Object> toJson();
 
 }
 #endif

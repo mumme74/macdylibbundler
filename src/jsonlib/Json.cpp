@@ -28,7 +28,7 @@ THE SOFTWARE.
 #include <iostream>
 #include "Json.h"
 
-using namespace json;
+using namespace Json;
 
 std::stringstream
 stringify(const std::string& in) {
@@ -318,21 +318,21 @@ String*
 VluBase::asString() const
 {
   if (m_type != StringType) throw std::string("Can't convert to String");
-  return dynamic_cast<json::String*>(const_cast<VluBase*>(this));
+  return dynamic_cast<Json::String*>(const_cast<VluBase*>(this));
 }
 
 Array*
 VluBase::asArray() const
 {
   if (m_type != ArrayType) throw std::string("Can't convert to Array");
-  return dynamic_cast<json::Array*>(const_cast<VluBase*>(this));
+  return dynamic_cast<Json::Array*>(const_cast<VluBase*>(this));
 }
 
 Object*
 VluBase::asObject() const
 {
   if (m_type != ObjectType) throw std::string("Can't convert to Object");
-  return dynamic_cast<json::Object*>(const_cast<VluBase*>(this));
+  return dynamic_cast<Json::Object*>(const_cast<VluBase*>(this));
 }
 
 // -----------------------------------------------------------------------
@@ -874,12 +874,12 @@ VluType parseObject(std::stringstream& jsn) {
   return root;
 }
 
-VluType json::parse(const std::string& jsnStr) {
+VluType Json::parse(const std::string& jsnStr) {
   std::stringstream sjson; sjson << jsnStr;
   return parse(sjson);
 }
 
-VluType json::parse(std::stringstream& jsn) {
+VluType Json::parse(std::stringstream& jsn) {
   eatWhitespace(jsn);
   while (!jsn.eof()) {
     int ch = jsn.peek();

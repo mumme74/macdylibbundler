@@ -27,7 +27,7 @@ THE SOFTWARE.
 #include <iostream>
 #include <sstream>
 
-namespace json {
+namespace Json {
 
 
 TEST(UndefinedTest, asOther) {
@@ -42,12 +42,12 @@ TEST(UndefinedTest, asOther) {
 };
 TEST(UndefinedTest, ConstructNoArgs) {
   Undefined n;
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&n), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&n), nullptr);
 };
 TEST(UndefinedTest, CopyConstructor) {
   Undefined u;
   Undefined u2(u);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&u2), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&u2), nullptr);
   EXPECT_EQ(u2.type(), VluBase::UndefinedType);
 };
 TEST(UndefinedTest, toString) {
@@ -83,13 +83,13 @@ TEST(NullTest, asOther) {
   EXPECT_ANY_THROW(v.asObject());
 };
 TEST(NullTest, ConstructNoArgs) {
-  json::Null n;
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&n), nullptr);
+  Json::Null n;
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&n), nullptr);
 };
 TEST(NullTest, CopyConstructor) {
   Null u;
   Null u2(u);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&u2), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&u2), nullptr);
   EXPECT_EQ(u2.type(), VluBase::NullType);
 };
 TEST(NullTest, toString) {
@@ -126,12 +126,12 @@ TEST(BoolTest, asOther) {
 };
 TEST(BoolTest, ConstructNoArgs) {
   Bool n(true);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&n), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&n), nullptr);
 };
 TEST(BoolTest, CopyConstructor) {
   Bool v(true);
   Bool v2(v);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v2), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v2), nullptr);
   EXPECT_EQ(v2.type(), VluBase::BoolType);
 };
 TEST(BoolTest, toString) {
@@ -176,13 +176,13 @@ TEST(NumberTest, NumberAsOther) {
 };
 TEST(NumberTest, ConstructNoArgs) {
   Number v0(0), v1(0.1f);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v0), nullptr);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v1), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v0), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v1), nullptr);
 };
 TEST(NumberTest, CopyConstructor) {
   Number v(10);
   Number v2(v);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v2), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v2), nullptr);
   EXPECT_EQ(v2.type(), VluBase::NumberType);
 };
 TEST(NumberTest, toString) {
@@ -229,13 +229,13 @@ TEST(StringTest, asOther) {
 };
 TEST(StringTest, ConstructNoArgs) {
   String v0("zero"), v1("one");
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v0), nullptr);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v1), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v0), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v1), nullptr);
 };
 TEST(StringTest, CopyConstructor) {
   String v("copy");
   String v2(v);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v2), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v2), nullptr);
   EXPECT_EQ(v2.type(), VluBase::StringType);
 };
 TEST(StringTest, toString) {
@@ -281,13 +281,13 @@ TEST(ArrayTest, asOther) {
 };
 TEST(ArrayTest, ConstructNoArgs) {
   Array v0, v1;
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v0), nullptr);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v1), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v0), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v1), nullptr);
 };
 TEST(ArrayTest, CopyConstructor) {
   Array v;
   Array v1(v);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v1), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v1), nullptr);
   EXPECT_EQ(v1.type(), VluBase::ArrayType);
 };
 TEST(ArrayTest, ConstructInitializerList) {
@@ -407,13 +407,13 @@ TEST(ObjectTest, asOther) {
 };
 TEST(ObjectTest, ConstructNoArgs) {
   Object v0, v1;
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v0), nullptr);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v1), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v0), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v1), nullptr);
 };
 TEST(ObjectTest, CopyConstructor) {
   Object v;
   Object v1(v);
-  EXPECT_NE(dynamic_cast<json::VluBase*>(&v1), nullptr);
+  EXPECT_NE(dynamic_cast<Json::VluBase*>(&v1), nullptr);
   EXPECT_EQ(v1.type(), VluBase::ObjectType);
 };
 TEST(ObjectTest, ConstructInitializerList) {
@@ -644,4 +644,4 @@ TEST(ParseTest, invalid) {
   EXPECT_ANY_THROW(parse("[null. 123]"));
   EXPECT_ANY_THROW(parse("{\"o\":546 \"p\":\"str\"}"));
 }
-} // namespace json
+} // namespace Json

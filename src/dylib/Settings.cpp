@@ -389,8 +389,8 @@ const std::string frameworkDir() {
             std::filesystem::path(destFolder());
 }
 
-std::unique_ptr<json::Object> toJson() {
-    using namespace json;
+std::unique_ptr<Json::Object> toJson() {
+    using namespace Json;
     auto obj = std::make_unique<Object>(
       std::initializer_list<std::pair<std::string, VluBase>>{
         {"canOverWriteFiles", Bool(canOverwriteFiles())},

@@ -39,7 +39,7 @@ THE SOFTWARE.
 #include "Settings.h"
 
 std::string handleSubProcessReq(const std::string& request);
-json::VluType handleJsonReq(json::VluType jsn);
+Json::VluType handleJsonReq(Json::VluType jsn);
 
 class File{
 public:
@@ -160,7 +160,7 @@ bool parentWrite(FILE *out, std::string_view str) {
     return true;
 }
 
-bool parentValueResponse(FILE *out, json::VluType res) {
+bool parentValueResponse(FILE *out, Json::VluType res) {
     for (const auto& vlu : res->asObject()->values()) {
         if (!parentWrite(out, vlu->serialize(2).str()))
             return false;
@@ -174,12 +174,12 @@ bool parentLoop(Pipes& pipes) {
 
     for (std::string input; parentRead(in.file(), input); input.clear()) {
         if (!input.size()) continue;
-        json::VluType jsn;
+        Json::VluType jsn;
         bool resInJson = false;
         if (input[0] == '{' || input[0] == '[') {
             // support both json and normal commands
             try {
-                jsn = json::parse(input);
+                jsn = Json::parse(input);
                 resInJson = true;
             } catch (std::string e) {
                 std::cerr << e << "\n";
@@ -188,7 +188,7 @@ bool parentLoop(Pipes& pipes) {
         }
         try {
             if (!jsn)
-                jsn = json::parse(std::string("[\"") + input + "\"]");
+                jsn = Json::parse(std::string("[\"") + input + "\"]");
 
             auto res = handleJsonReq(std::move(jsn));
             if (resInJson) {
@@ -279,7 +279,7 @@ void runPythonScripts_afterHook() {
     std::cout << "\n* Running App bundle scripts on "
               << Settings::appBundlePath() << std::endl;
 
-    auto root = std::make_unique<json::Object>();
+    auto root = std::make_unique<Json::Object>();
     root->set("settings", Settings::toJson());
 
     namespace fs = std::filesystem;
@@ -300,7 +300,7 @@ void runPythonScripts_afterHook() {
 
 struct ProtocolItem {
     const char *name, *description;
-    typedef std::function<void(const char*, json::Object*)> cbType;
+    typedef std::function<void(const char*, Json::Object*)> cbType;
     cbType cb;
     ProtocolItem(const char* name, const char* description, cbType cb):
         name{name}, description{description}, cb{cb}
@@ -309,92 +309,92 @@ struct ProtocolItem {
 
 const int indent = 2;
 
-json::VluType listProtocol();
+Json::VluType listProtocol();
 
 const ProtocolItem protocol[] {
     {
         "get_protocol",
         "Gets info on all protocol commands a script can use",
-        [](const char *cmd, json::Object* obj){
+        [](const char *cmd, Json::Object* obj){
             obj->set(cmd, listProtocol());
         }
     },
     {
         "all_settings",
         "Gets all settings in a complete bundle",
-        [](const char* cmd, json::Object* obj){ (void)cmd;
+        [](const char* cmd, Json::Object* obj){ (void)cmd;
             obj->set(cmd, Settings::toJson());
         }
     },
     {
         "appBundlePath",
         "Get the path to the app bundle.",
-        [](const char* cmd, json::Object* obj){
+        [](const char* cmd, Json::Object* obj){
             auto setting = Settings::appBundlePath().string();
-            obj->set(cmd, std::make_unique<json::String>(setting));
+            obj->set(cmd, std::make_unique<Json::String>(setting));
         }
     },
     {
         "frameworkDir",
         "Get path to framework dir inside app bundle",
-        [](const char* cmd, json::Object* obj){
+        [](const char* cmd, Json::Object* obj){
             auto setting = Settings::frameworkDir();
-            obj->set(cmd, std::make_unique<json::String>(setting));
+            obj->set(cmd, std::make_unique<Json::String>(setting));
         }
     },
     {
         "destFolder",
         "Get path to the destination folder",
-        [](const char* cmd, json::Object* obj){
+        [](const char* cmd, Json::Object* obj){
             auto setting = Settings::destFolder();
-            obj->set(cmd, std::make_unique<json::String>(setting));
+            obj->set(cmd, std::make_unique<Json::String>(setting));
         }
     },
     {
         "canOverwriteDir",
         "Is true if we are allowed to overwrite dir",
-        [](const char* cmd, json::Object* obj){
+        [](const char* cmd, Json::Object* obj){
             auto setting = Settings::canOverwriteDir();
-            obj->set(cmd, std::make_unique<json::Bool>(setting));
+            obj->set(cmd, std::make_unique<Json::Bool>(setting));
         }
     },
     {
         "canOverwriteFiles",
         "Is true if we are allowed to overwrite files",
-        [](const char* cmd, json::Object* obj){
+        [](const char* cmd, Json::Object* obj){
             auto setting = Settings::canOverwriteFiles();
-            obj->set(cmd, std::make_unique<json::Bool>(setting));
+            obj->set(cmd, std::make_unique<Json::Bool>(setting));
         }
     },
     {
         "canCodeSign",
         "Is true if we can codeSign the bundle",
-        [](const char* cmd, json::Object* obj){
+        [](const char* cmd, Json::Object* obj){
             auto setting = Settings::canCodesign();
-            obj->set(cmd, std::make_unique<json::Bool>(setting));
+            obj->set(cmd, std::make_unique<Json::Bool>(setting));
         }
     },
     {
         "prefixTools",
         "Prefix tools ie. libtool example: if set to aarch-macho- "
         "becomes aarch-macho-libtool",
-        [](const char* cmd, json::Object* obj){
+        [](const char* cmd, Json::Object* obj){
             auto setting = Settings::prefixTools();
-            obj->set(cmd, std::make_unique<json::String>(setting));
+            obj->set(cmd, std::make_unique<Json::String>(setting));
         }
     },
 };
 
-json::VluType listProtocol() {
-    auto obj = std::make_unique<json::Object>();
+Json::VluType listProtocol() {
+    auto obj = std::make_unique<Json::Object>();
     for (std::size_t i = 0; i < sizeof(protocol)/sizeof(protocol[0]); ++i) {
         const auto& prot = protocol[i];
-        obj->set(prot.name, std::make_unique<json::String>(prot.description));
+        obj->set(prot.name, std::make_unique<Json::String>(prot.description));
     }
     return obj;
 }
 
-void handleCmd(const json::Array* params, json::Object* retObj)
+void handleCmd(const Json::Array* params, Json::Object* retObj)
 {
     // cmd is always the first item in array
     auto cmd = params->at(0);
@@ -418,16 +418,16 @@ void handleCmd(const json::Array* params, json::Object* retObj)
     throw std::string("Command: ") + cmdStr + " not valid";
 }
 
-json::VluType handleJsonReq(json::VluType jsn)
+Json::VluType handleJsonReq(Json::VluType jsn)
 {
-    auto retObj = std::make_unique<json::Object>();
+    auto retObj = std::make_unique<Json::Object>();
 
     if (jsn->isArray()) {
         auto arr = jsn->asArray();
         while (arr->length()) {
             auto elem = arr->pop();
             if (elem->isString()) {
-                auto params = std::make_unique<json::Array>();
+                auto params = std::make_unique<Json::Array>();
                 params->push(std::move(elem));
                 handleCmd(params.get(), retObj.get());
             } else if (elem->isArray()) {
@@ -453,14 +453,14 @@ json::VluType handleJsonReq(json::VluType jsn)
 std::string handleSubProcessReq(const std::string& request)
 {
     try {
-        auto jsn = json::parse(request);
+        auto jsn = Json::parse(request);
         if (!jsn || jsn->isUndefined())
             throw "Not a json Request";
         return handleJsonReq(std::move(jsn))->serialize().str();
     } catch (std::string& e) {
         std::cerr << e;
-        auto res = std::make_unique<json::Object>();
-        res->set("error", std::make_unique<json::String>(e));
+        auto res = std::make_unique<Json::Object>();
+        res->set("error", std::make_unique<Json::String>(e));
         return res->serialize().str();
     }
 }
