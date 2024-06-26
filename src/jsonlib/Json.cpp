@@ -512,7 +512,7 @@ String::vlu() const
 std::string
 String::toString() const
 {
-  return stringify(*m_vlu.strVlu).str();
+  return *m_vlu.strVlu;
 }
 
 std::stringstream
@@ -666,6 +666,7 @@ Object::serialize(int indent, int depth) const
   std::stringstream out;
   auto ind = createIndent(indent, depth);
   out << ind << "{";
+  auto p = out.tellp();
   for (const auto& entry : *m_vlu.objVlu) {
     if (iter++) out << ",";
     auto str = entry.second->serialize(indent, depth + 2).str();
@@ -674,7 +675,14 @@ Object::serialize(int indent, int depth) const
         << stringify(entry.first).str() << ":"
         << str.substr(str.find_first_not_of(' '));
   }
-  out << ind << "}";
+  if (p < out.tellp()) {
+    if (indent > 0)
+      out << '\n';
+    out << ind;
+  }
+
+  out << "}";
+
 
   return out;
 }

@@ -2,7 +2,6 @@ add_subdirectory(common)
 add_subdirectory(jsonlib)
 add_subdirectory(dylib)
 add_subdirectory(argparser)
-add_subdirectory(asyncfifo)
 
 target_sources(dylibbundler PRIVATE
   main.cpp

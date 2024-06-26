@@ -25,18 +25,24 @@ THE SOFTWARE.
 #ifndef SCRIPT_RUNNER_H
 #define SCRIPT_RUNNER_H
 
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <sys/types.h>
+#include <vector>
+#include <string>
 
 void runPythonScripts_afterHook();
 
-class Socket {
-  struct sockaddr_un local, remote;
-  const char *sockFile;
+class Script {
 public:
-  Socket();
+  Script(std::string_view path,
+        const std::vector<std::string> args,
+        int timeoutMs = 20000);
+  ~Script();
+private:
+  const std::string_view m_path;
+  const std::vector<std::string> m_args;
+  int m_timeoutMs;
+  int m_pidScript, m_pidTimeout;
+  int m_fd[2];
 };
+
 
 #endif // SCRIPT_RUNNER_H

@@ -13,10 +13,9 @@ target_sources(
     Utils.h
     ScriptRunner.h
 )
-target_link_libraries(dylib PUBLIC common json asyncfifo)
+target_link_libraries(dylib PUBLIC common json)
 target_include_directories(
   dylib PUBLIC
   ${CMAKE_SOURCE_DIR}/src/common
   ${CMAKE_SOURCE_DIR}/src/jsonlib
-  ${CMAKE_SOURCE_DIR}/src/asyncfifo
 )

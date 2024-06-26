@@ -28,16 +28,6 @@ target_include_directories(
 add_test(NAME argparsertest COMMAND $<TARGET_FILE:argparsertest>
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-# asyncfifo lib
-add_executable(asyncfifotest test_AsyncFifo.cpp)
-target_link_libraries(asyncfifotest gtest_main asyncfifo)
-target_include_directories(
-  asyncfifotest PUBLIC
-    ${CMAKE_SOURCE_DIR}/src/asyncfifo
-)
-add_test(NAME asyncfifotest COMMAND $<TARGET_FILE:asyncfifotest>
-         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
 # common lib
 add_executable(commontest test_Common.cpp)
 target_link_libraries(commontest gtest_main common)

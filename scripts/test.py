@@ -1,26 +1,52 @@
 #!/usr/bin/env python3
 
-from common import *
+#from common import *
+from time import sleep
 
 import sys, json
+import builtins
 
-print("script started with:")
+def question(data):
+  if isinstance(data, str):
+    data = data.encode('utf8')
+  sz = len(data)
+  sys.stdout.buffer.write(sz.to_bytes(sz.bit_length(), 'big'))
+  sys.stdout.buffer.write(data)
+  sys.stdout.buffer.flush()
+  print("sent to parent, starting to read from input\n")
 
+  # read size bigendian
+  buf = sys.stdin.buffer.read(4)
+  sz = int.from_bytes(buf, 'big')
+  return sys.stdin.buffer.read(sz)
+
+def print(*args, **kwargs):
+  """Print to stderr"""
+  kwargs['file'] = sys.stderr
+  kwargs['flush'] = True
+  return builtins.print(*args, **kwargs)
+
+
+print("script started with:", file=sys.stderr)
 for arg in sys.argv[1:]:
   print(arg, end='')
 print("\n")
 
-cmds = [
-  "py:ge mig commando1",
-  "py:ge mig commando2",
-  "py:ge mig commando3"]
+res = question("get_protocol")
+print(f"Res:{res}")
 
-fifo= Fifo()
+#sleep(3)
+# cmds = [
+#   "py:ge mig commando1",
+#   "py:ge mig commando2",
+#   "py:ge mig commando3"]
 
-for cmd in cmds:
-  print(f"sending cmd {cmd}")
-  fifo.write(cmd)
-  print(fifo.read())
+# fifo= Fifo()
+
+# for cmd in cmds:
+#   print(f"sending cmd {cmd}")
+#   fifo.write(cmd)
+#   print(fifo.read())
 
 
 
