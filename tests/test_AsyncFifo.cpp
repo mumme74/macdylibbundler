@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2023 Fredrik Johansson
+Copyright (c) 2024 Fredrik Johansson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,21 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-#ifndef SCRIPT_RUNNER_H
-#define SCRIPT_RUNNER_H
+#include <gtest/gtest.h>
 
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <sys/types.h>
-
-void runPythonScripts_afterHook();
-
-class Socket {
-  struct sockaddr_un local, remote;
-  const char *sockFile;
-public:
-  Socket();
-};
-
-#endif // SCRIPT_RUNNER_H
+#include <iostream>
+#include "asyncfifo.hpp"

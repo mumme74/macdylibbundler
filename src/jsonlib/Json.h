@@ -117,6 +117,7 @@ public:
   bool isArray() const { return m_type == ArrayType; }
   bool isObject() const { return m_type == ObjectType; }
   Type type() const { return m_type; }
+  std::string_view typeName() const;
 
   VluBase*   asBase() const;
   Undefined* asUndefined() const;

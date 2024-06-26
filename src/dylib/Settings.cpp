@@ -29,6 +29,7 @@ THE SOFTWARE.
 #include <algorithm>
 #include "Settings.h"
 #include "Common.h"
+#include "Utils.h"
 
 //initialize the dylib search paths
 void initSearchPaths(){
@@ -76,11 +77,12 @@ void initAppBundleScripts(int argc, const char* argv[]) {
         for (auto& entry : std::filesystem::directory_iterator(path)) {
             if (std::find(skip.begin(), skip.end(), entry.path().filename()) != skip.end())
             { continue; } // skip
-            if (entry.path().extension() == ".py")
+
+            if (isExecutable(entry.path())) {
                 Settings::setAppBundleScript(entry.path());
+            }
         }
     }
-
 }
 
 
@@ -135,6 +137,32 @@ void setPrefixTools(const std::string& prefixTools)
     prefixTools_str = prefixTools;
 }
 
+std::string otool_cmd = "", install_name_cmd = "";
+/// give absolute path to otool
+void setOToolPath(const std::string& otoolPath)
+{
+    otool_cmd = otoolPath;
+}
+/// give absolute path to install_name_tool
+void setInstallNameToolPath(const std::string& installNamePath)
+{
+    install_name_cmd = installNamePath;
+}
+/// get cmd to use for otool
+const std::string otoolCmd()
+{
+    if (otool_cmd.empty())
+        return prefixTools_str + "otool";
+    return otool_cmd;
+}
+/// get cmd to use for install_name_tool
+const std::string installNameToolCmd()
+{
+    if (install_name_cmd.empty())
+        return prefixTools_str + "install_name_tool";
+    return install_name_cmd;
+}
+
 std::string codesign_str = "codesign";
 const std::string codeSign() { return codesign_str; }
 void setCodeSign(const std::string &codesign) { codesign_str = codesign; }
@@ -175,16 +203,17 @@ void setAppBundlePath(const std::string& path) {
     setCreateAppBundle(true);
 }
 
-std::filesystem::path _scriptDir;
+std::filesystem::path _scriptDir{};
 std::vector<std::filesystem::path> all_appBundleScripts;
 bool scriptsPrevented = false;
+bool scriptsOnly = false;
 void setAppBundleScript(const std::filesystem::path script) {
     if (!std::filesystem::exists(script)) {
         exitMsg(std::string("Script ") + script.string() + "does not exist.");
 
-    } else if (script.extension() != ".py") {
-        exitMsg(std::string("Script ") + script.string() + " ext:"
-                + script.extension().string() + "is not a *.py script.");
+    } else if (!isExecutable(script)) {
+        exitMsg(std::string("Script ") + script.string() +
+                std::string(" is not executable"));
     } else if (scriptsPrevented) {
         exitMsg(std::string("Scripts are prevented, can't add ")
                 + script.string());
@@ -195,18 +224,30 @@ void setAppBundleScript(const std::filesystem::path script) {
 std::vector<std::filesystem::path>& appBundleScripts() {
     return all_appBundleScripts;
 }
+const std::filesystem::path& scriptDir() {
+    return _scriptDir;
+}
+void setScriptsDir(std::filesystem::path dir)
+{
+    _scriptDir = dir;
+}
 /// prevent all appBundle scripts from beeing run
 void preventAppBundleScripts() {
     scriptsPrevented = true;
 }
+void setOnlyRunScripts() {
+    scriptsOnly = true;
+}
+/// If we should only run scripts
+bool shouldOnlyRunScripts() {
+    return scriptsOnly;
+}
+
 const std::filesystem::path appBundleContentsDir() {
     return appBundlePath() / "Contents" / "";
 }
 const std::filesystem::path appBundleExecDir() {
     return appBundleContentsDir() / "MacOS" / "";
-}
-const std::filesystem::path& scriptDir() {
-    return _scriptDir;
 }
 
 std::filesystem::path plist_path;
@@ -323,7 +364,9 @@ std::unique_ptr<json::Object> toJson() {
         {"prefixTools", String(prefixTools())},
         {"appBundleContentsDir", String(appBundleContentsDir())},
         {"inside_lib_path", String(inside_lib_path())},
-        {"inside_framework_path", String(inside_framework_path())}
+        {"inside_framework_path", String(inside_framework_path())},
+        {"otool_path", String(otoolCmd())},
+        {"install_name_tool_path", String(installNameToolCmd())}
       }
     );
     return obj;

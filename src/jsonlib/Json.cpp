@@ -264,6 +264,22 @@ VluBase::serialize(int indent, int depth) const
   return std::stringstream();
 }
 
+std::string_view
+VluBase::typeName() const
+{
+  switch (m_type) {
+  case UndefinedType: return "undefined";
+  case NullType:      return "null";
+  case BoolType:      return "boolean";
+  case NumberType:    return "number";
+  case StringType:    return "string";
+  case ArrayType:     return "array";
+  case ObjectType:    return "object";
+  default: assert(m_type > -1 && "unhandled type");
+  }
+  return "*error*";
+}
+
 VluBase*
 VluBase::asBase() const
 {

@@ -68,6 +68,14 @@ void setDestFolder(const std::string& path);
 const std::string prefixTools();
 /// Set cross compiling tool prefix
 void setPrefixTools(const std::string& prefixTools);
+/// give absolute path to otool
+void setOToolPath(const std::string& otoolPath);
+/// give absolute path to install_name_tool
+void setInstallNameToolPath(const std::string& installNamePath);
+/// get cmd to use for otool
+const std::string otoolCmd();
+/// get cmd to use for install_name_tool
+const std::string installNameToolCmd();
 
 const std::string codeSign();
 void setCodeSign(const std::string& codesign);
@@ -86,6 +94,10 @@ void setAppBundleScript(const std::filesystem::path script);
 std::vector<std::filesystem::path>& appBundleScripts();
 /// prevent all appBundle scripts from beeing run
 void preventAppBundleScripts();
+/// only run script, nothing else
+void setOnlyRunScripts();
+/// If we should only run scripts
+bool shouldOnlyRunScripts();
 /// Get the path to Contents directory in bundle
 ///  example: name.app/Contents
 const std::filesystem::path appBundleContentsDir();

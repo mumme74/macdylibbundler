@@ -5,3 +5,5 @@ dylibbundler
 build/
 cmake-build-*/
 .DS_Store
+
+app_samples

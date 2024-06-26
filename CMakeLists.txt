@@ -17,6 +17,7 @@ add_compile_options(-pipe -Wall -Wextra -Wpedantic)
 
 add_library(common STATIC "")
 add_library(json STATIC "")
+add_library(asyncfifo STATIC "")
 add_library(dylib STATIC "")
 add_library(argparser STATIC "")
 add_executable(dylibbundler "")
