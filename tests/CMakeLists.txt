@@ -19,7 +19,7 @@ add_test(NAME jsontest COMMAND $<TARGET_FILE:jsontest>
 
 # argparser lib
 add_executable(argparsertest test_ArgParser.cpp)
-target_link_libraries(argparsertest gtest_main argparser dylib)
+target_link_libraries(argparsertest gtest_main argparser)
 target_include_directories(
   argparsertest PUBLIC
     ${CMAKE_SOURCE_DIR}/src/argparser
@@ -36,4 +36,14 @@ target_include_directories(
     ${CMAKE_SOURCE_DIR}/src/common
 )
 add_test(NAME commontest COMMAND $<TARGET_FILE:commontest>
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# dylib
+add_executable(dylibtest test_Dylib.cpp)
+target_link_libraries(dylibtest gtest_main dylib)
+target_include_directories(
+  dylibtest PUBLIC
+    ${CMAKE_SOURCE_DIR}/src/dylib
+)
+add_test(NAME dylibtest COMMAND $<TARGET_FILE:dylibtest>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
