@@ -56,8 +56,14 @@ class Array;
 class Object;
 
 typedef std::unique_ptr<VluBase> VluType;
+typedef std::unique_ptr<std::string> StrType;
 typedef std::vector<VluType> ArrType;
 typedef std::map<const std::string, Json::VluType> ObjType;
+
+class Exception : public std::runtime_error {
+public:
+  Exception(const char* what);
+};
 
 class VluBase {
 public:
@@ -67,40 +73,13 @@ public:
     // complex types, data on heap for these
     StringType, ArrayType, ObjectType
   };
-protected:
-  Type m_type;
-  union vlu {
-  public:
-    vlu(Type type) :
-      objVlu(nullptr)
-    {
-      switch (type) {
-      case BoolType:   boolVlu = false; break;
-      case NumberType: numVlu = 0.0f; break;
-      case StringType: [[fallthrough]];
-      case ArrayType:  [[fallthrough]];
-      case ObjectType: [[fallthrough]];
-      default: ; // init as nullptr
-      }
-    }
-    ~vlu() {}
-    bool boolVlu;
-    float numVlu;
-    std::unique_ptr<std::string> strVlu;
-    std::unique_ptr<ArrType> arrVlu;
-    std::unique_ptr<ObjType> objVlu;
-  } m_vlu;
-  const VluBase* m_parent;
-
-  void shallowCopy(VluBase* to, const VluBase& other) const;
-  std::unique_ptr<VluBase> copyCreate(const VluBase& vlu) const;
-  bool isChildOf(const VluBase* other) const;
-
-public:
+  //VluBase() = delete;
   explicit VluBase(Type type, const VluBase* parent);
   VluBase(const VluBase& other);
+  VluBase(VluBase&& rhs);
   virtual ~VluBase();
   virtual VluBase& operator= (const VluBase& other);
+  virtual VluBase& operator= (VluBase&& rhs);
   virtual bool operator== (const VluBase& other) const;
   virtual bool operator!= (const VluBase& other) const {
     return !operator==(other);
@@ -128,6 +107,36 @@ public:
   String*    asString() const;
   Array*     asArray() const;
   Object*    asObject() const;
+
+protected:
+  Type m_type;
+  union vlu {
+  public:
+    vlu(Type type) :
+      objVlu(nullptr)
+    {
+      switch (type) {
+      case BoolType:   boolVlu = false; break;
+      case NumberType: numVlu = 0.0f; break;
+      case StringType: [[fallthrough]];
+      case ArrayType:  [[fallthrough]];
+      case ObjectType: [[fallthrough]];
+      default: ; // init as nullptr
+      }
+    }
+    ~vlu() {}
+    bool boolVlu;
+    float numVlu;
+    StrType strVlu;
+    std::unique_ptr<ArrType> arrVlu;
+    std::unique_ptr<ObjType> objVlu;
+  } m_vlu;
+  const VluBase* m_parent;
+
+  void shallowCopy(VluBase* to, const VluBase& other) const;
+  void shallowMove(VluBase* to, VluBase&& rhs) const;
+  VluType copyCreate(const VluBase& vlu) const;
+  bool isChildOf(const VluBase* other) const;
 };
 
 class Undefined : public VluBase {
@@ -154,6 +163,7 @@ public:
   Bool(const Bool& other);
   ~Bool();
   Bool& operator= (const Bool& other);
+  Bool& operator= (Bool&& rhs);
   bool vlu() const;
   std::string toString() const;
   std::stringstream serialize(int indent = 0, int depth = 0) const;
@@ -168,6 +178,7 @@ public:
   Number(const Number& other);
   ~Number();
   Number& operator= (const Number& other);
+  Number& operator= (Number&& rhs);
   bool operator< (const Number& other) const {
     return m_vlu.numVlu < other.m_vlu.numVlu;
   }
@@ -183,9 +194,12 @@ public:
 class String : public VluBase {
 public:
   String(const std::string& vlu, const VluBase* parent = nullptr);
+  String(std::string_view vlu, const VluBase* parent = nullptr);
+  String(const char* vlu, const VluBase* parent = nullptr);
   String(const String& other);
   ~String();
   String& operator= (const String& other);
+  String& operator= (String&& rhs);
   std::string vlu() const;
   std::string toString() const;
   std::stringstream serialize(int indent = 0, int depth = 0) const;
@@ -194,10 +208,11 @@ public:
 class Array : public VluBase {
 public:
   Array(const VluBase* parent = nullptr);
-  Array(const Array& other);
   Array(const std::initializer_list<VluBase>& args);
+  Array(const Array& other);
   ~Array();
   Array& operator= (const Array& other);
+  Array& operator= (Array&& rhs);
   VluBase& operator[] (size_t idx) const { return *at(idx); }
   VluBase* at(size_t idx) const;
   std::string toString() const;
@@ -211,11 +226,12 @@ public:
 class Object : public VluBase {
 public:
   Object(const VluBase* parent = nullptr);
-  Object(const Object& other);
   Object(const std::initializer_list<
     std::pair<std::string, VluBase>>& args);
+  Object(const Object& other);
   ~Object();
   Object& operator= (const Object& other);
+  Object& operator= (Object&& rhs);
   std::string toString() const;
   std::stringstream serialize(int indent = 0, int depth = 0) const;
   void set(const char* key, std::unique_ptr<VluBase> vlu);

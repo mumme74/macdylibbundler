@@ -239,8 +239,8 @@ TEST(StringTest, CopyConstructor) {
   EXPECT_EQ(v2.type(), VluBase::StringType);
 };
 TEST(StringTest, toString) {
-  EXPECT_STREQ(String("str").toString().c_str(), "\"str\"");
-  EXPECT_STREQ(String("s\nt\"r").toString().c_str(), "\"s\\nt\\\"r\"");
+  EXPECT_STREQ(String("str").toString().c_str(), "str");
+  EXPECT_STREQ(String("s\nt\"r").toString().c_str(), "s\nt\"r");
 };
 TEST(StringTest, serialize) {
   EXPECT_STREQ(String("str").serialize(2,1).str().c_str(), "\n  \"str\"");
@@ -432,8 +432,9 @@ TEST(ObjectTest, toString) {
 TEST(ObjectTest, serialize) {
   Object e;
   EXPECT_STREQ(e.serialize().str().c_str(), "{}");
-  EXPECT_STREQ(e.serialize(2,1).str().c_str(), "\n  {\n  }");
-  EXPECT_STREQ(e.serialize(2,2).str().c_str(), "\n    {\n    }");
+  EXPECT_STREQ(e.serialize(2,1).str().c_str(), "\n  {}");
+  e.set("key", Null());
+  EXPECT_STREQ(e.serialize(2,2).str().c_str(), "\n    {\n      \"key\":null\n    }");
   Object o;
   o.set("n", std::make_unique<Null>());
   o.set("num", std::make_unique<Number>(123));

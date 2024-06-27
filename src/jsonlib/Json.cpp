@@ -81,7 +81,45 @@ serializeScalar(int indent, int depth, const std::string& toStr)
   return out;
 }
 
+// --------------------------------------------------------------
+
+Exception::Exception(const char* what) :
+  std::runtime_error(what)
+{}
+
 // ---------------------------------------------------------------
+
+void
+VluBase::shallowMove(VluBase *to, VluBase&& rhs) const
+{
+  switch (m_type) {
+  case BoolType:
+    to->m_vlu.boolVlu = std::move(rhs.m_vlu.boolVlu);
+    break;
+  case NumberType:
+    to->m_vlu.numVlu = std::move(rhs.m_vlu.numVlu);
+    break;
+  case StringType: {
+    StrType ptr = std::move(rhs.m_vlu.strVlu);
+    to->m_vlu.strVlu.swap(ptr);
+  } break;
+  case ArrayType: {
+    auto ptr = std::move(rhs.m_vlu.arrVlu);
+    to->m_vlu.arrVlu.swap(ptr);
+    for (const auto& entry : *to->m_vlu.arrVlu) {
+      entry->setParent(to);
+    }
+  } break;
+  case ObjectType: {
+    auto ptr = std::move(rhs.m_vlu.objVlu);
+    to->m_vlu.objVlu.swap(ptr);
+    for (const auto& entry : *to->m_vlu.objVlu) {
+      entry.second->setParent(to);
+    }
+  } break;
+  default: ; // nothing
+  }
+}
 
 void
 VluBase::shallowCopy(VluBase *to, const VluBase& other) const
@@ -119,7 +157,7 @@ VluBase::shallowCopy(VluBase *to, const VluBase& other) const
   }
 }
 
-std::unique_ptr<VluBase>
+VluType
 VluBase::copyCreate(const VluBase& vlu) const
 {
   switch (vlu.type()) {
@@ -174,8 +212,7 @@ VluBase::VluBase(Type type, const VluBase* parent) :
   m_type(type),
   m_vlu(type),
   m_parent(parent)
-{
-}
+{}
 
 VluBase::VluBase(const VluBase& other) :
   m_type(other.m_type),
@@ -185,15 +222,30 @@ VluBase::VluBase(const VluBase& other) :
   shallowCopy(this, other);
 }
 
-VluBase::~VluBase()
+VluBase::VluBase(VluBase&& rhs) :
+  m_type(std::move(rhs.m_type)),
+  m_vlu(std::move(rhs.m_type)),
+  m_parent(std::move(rhs.m_parent))
 {
+  shallowMove(this, std::move(rhs));
 }
+
+VluBase::~VluBase()
+{}
 
 VluBase&
 VluBase::operator= (const VluBase& other)
 {
   assert(m_type == other.m_type);
   shallowCopy(this, other);
+  return *this;
+}
+
+VluBase&
+VluBase::operator= (VluBase&& rhs)
+{
+  assert(m_type == rhs.m_type);
+  shallowMove(this, std::move(rhs));
   return *this;
 }
 
@@ -252,7 +304,7 @@ std::stringstream
 VluBase::serialize(int indent, int depth) const
 {
   switch (m_type) {
-  case UndefinedType: throw std::string("Can't serialze as a value is undefined");
+  case UndefinedType: throw Exception("Can't serialize as a value is undefined");
   case NullType: return asNull()->serialize(indent, depth);
   case BoolType: return asBool()->serialize(indent, depth);
   case NumberType: return asNumber()->serialize(indent, depth);
@@ -289,49 +341,49 @@ VluBase::asBase() const
 Undefined*
 VluBase::asUndefined() const
 {
-  if (m_type != UndefinedType) throw std::string("Can't convert to Undefined");
+  if (m_type != UndefinedType) throw Exception("Can't convert to Undefined");
   return dynamic_cast<Undefined*>(const_cast<VluBase*>(this));
 }
 
 Null*
 VluBase::asNull() const
 {
-  if (m_type != NullType) throw std::string("Can't convert to Null");
+  if (m_type != NullType) throw Exception("Can't convert to Null");
   return dynamic_cast<Null*>(const_cast<VluBase*>(this));
 }
 
 Bool*
 VluBase::asBool() const
 {
-  if (m_type != BoolType) throw std::string("Can't convert to Bool");
+  if (m_type != BoolType) throw Exception("Can't convert to Bool");
   return dynamic_cast<Bool*>(const_cast<VluBase*>(this));
 }
 
 Number*
 VluBase::asNumber() const
 {
-  if (m_type != NumberType) throw std::string("Can't convert to Number");
+  if (m_type != NumberType) throw Exception("Can't convert to Number");
   return dynamic_cast<Number*>(const_cast<VluBase*>(this));
 }
 
 String*
 VluBase::asString() const
 {
-  if (m_type != StringType) throw std::string("Can't convert to String");
+  if (m_type != StringType) throw Exception("Can't convert to String");
   return dynamic_cast<Json::String*>(const_cast<VluBase*>(this));
 }
 
 Array*
 VluBase::asArray() const
 {
-  if (m_type != ArrayType) throw std::string("Can't convert to Array");
+  if (m_type != ArrayType) throw Exception("Can't convert to Array");
   return dynamic_cast<Json::Array*>(const_cast<VluBase*>(this));
 }
 
 Object*
 VluBase::asObject() const
 {
-  if (m_type != ObjectType) throw std::string("Can't convert to Object");
+  if (m_type != ObjectType) throw Exception("Can't convert to Object");
   return dynamic_cast<Json::Object*>(const_cast<VluBase*>(this));
 }
 
@@ -402,7 +454,14 @@ Bool::~Bool() {}
 Bool&
 Bool::operator= (const Bool& other)
 {
-  m_vlu.boolVlu = other.m_vlu.boolVlu;
+  VluBase::operator=(other);
+  return *this;
+}
+
+Bool&
+Bool::operator= (Bool&& rhs)
+{
+  VluBase::operator=(std::move(rhs));
   return *this;
 }
 
@@ -446,15 +505,21 @@ Number::Number(uint vlu, const VluBase* parent) :
 
 Number::Number(const Number& other) :
   VluBase(other)
-{
-}
+{}
 
 Number::~Number() { }
 
 Number&
 Number::operator= (const Number& other)
 {
-  m_vlu.numVlu = other.m_vlu.numVlu;
+  VluBase::operator=(other);
+  return *this;
+}
+
+Number&
+Number::operator= (Number&& rhs)
+{
+  VluBase::operator=(std::move(rhs));
   return *this;
 }
 
@@ -487,19 +552,37 @@ String::String(const std::string& vlu, const VluBase* parent) :
   m_vlu.strVlu = std::make_unique<std::string>(vlu);
 }
 
-String::String(const String& other) :
-  VluBase(other)
+
+String::String(std::string_view vlu, const VluBase* parent) :
+  VluBase(StringType, parent)
 {
+  m_vlu.strVlu = std::make_unique<std::string>(vlu.data());
 }
 
-String::~String()
+String::String(const char* vlu, const VluBase* parent) :
+  VluBase(StringType, parent)
 {
+  m_vlu.strVlu = std::make_unique<std::string>(std::string(vlu));
 }
+
+String::String(const String& other) :
+  VluBase(other)
+{}
+
+String::~String()
+{}
 
 String&
 String::operator= (const String& other)
 {
-  *m_vlu.strVlu = *other.m_vlu.strVlu;
+  VluBase::operator=(other);
+  return *this;
+}
+
+String&
+String::operator= (String&& rhs)
+{
+  VluBase::operator=(std::move(rhs));
   return *this;
 }
 
@@ -531,11 +614,6 @@ Array::Array(const VluBase* parent) :
   m_vlu.arrVlu = std::make_unique<ArrType>();
 }
 
-Array::Array(const Array& other) :
-  VluBase(other)
-{
-}
-
 Array::Array(const std::initializer_list<VluBase>& args) :
   VluBase(ArrayType, nullptr)
 {
@@ -548,16 +626,28 @@ Array::Array(const std::initializer_list<VluBase>& args) :
   }
 }
 
+Array::Array(const Array& other) :
+  VluBase(other)
+{}
+
 Array::~Array()
-{
-}
+{}
 
 Array&
 Array::operator= (const Array& other)
 {
   if (!m_vlu.arrVlu->empty())
-    throw std::string("Can't set to a non empty array");
-  shallowCopy(this, other);
+    throw Exception("Can't set to a non empty array");
+  VluBase::operator=(other);
+  return *this;
+}
+
+Array&
+Array::operator= (Array&& rhs)
+{
+  if (!m_vlu.arrVlu->empty())
+    throw Exception("Can't set to a non empty array");
+  VluBase::operator=(std::move(rhs));
   return *this;
 }
 
@@ -592,7 +682,7 @@ Array::serialize(int indent /* = 0 */, int depth /*= 0*/) const
 void
 Array::push(std::unique_ptr<VluBase> vlu)
 {
-  if (isChildOf(vlu.get())) throw std::string("Cyclic dependency");
+  if (isChildOf(vlu.get())) throw Exception("Cyclic dependency");
   vlu->setParent(this);
   m_vlu.arrVlu->push_back(std::move(vlu));
 }
@@ -621,11 +711,6 @@ Object::Object(const VluBase* parent) :
   m_vlu.objVlu = std::make_unique<ObjType>();
 }
 
-Object::Object(const Object& other) :
-  VluBase(other)
-{
-}
-
 Object::Object(const std::initializer_list<
   std::pair<std::string, VluBase>>& args) :
   VluBase(ObjectType, nullptr)
@@ -640,16 +725,28 @@ Object::Object(const std::initializer_list<
   }
 }
 
+Object::Object(const Object& other) :
+  VluBase(other)
+{}
+
 Object::~Object()
-{
-}
+{}
 
 Object&
 Object::operator= (const Object& other)
 {
   if (!m_vlu.objVlu->empty())
-    throw std::string("Can't set to a non empty json::Object");
-  shallowCopy(this, other);
+    throw Exception("Can't set to a non empty json::Object");
+  VluBase::operator= (other);
+  return *this;
+}
+
+Object&
+Object::operator= (Object&& rhs)
+{
+  if (!m_vlu.objVlu->empty())
+    throw Exception("Can't set to a non empty json::Object");
+  VluBase::operator=(std::move(rhs));
   return *this;
 }
 
@@ -667,16 +764,17 @@ Object::serialize(int indent, int depth) const
   auto ind = createIndent(indent, depth);
   out << ind << "{";
   auto p = out.tellp();
+  std::string str;
   for (const auto& entry : *m_vlu.objVlu) {
     if (iter++) out << ",";
-    auto str = entry.second->serialize(indent, depth + 2).str();
+    str = entry.second->serialize(indent, depth + 2).str();
     str = str.substr(str.find_first_not_of("\n"));
     out << createIndent(indent, depth+1)
         << stringify(entry.first).str() << ":"
         << str.substr(str.find_first_not_of(' '));
   }
   if (p < out.tellp()) {
-    if (indent > 0)
+    if (indent > 0 && ind.size() && ind[0] != '\n')
       out << '\n';
     out << ind;
   }
@@ -690,7 +788,7 @@ Object::serialize(int indent, int depth) const
 void
 Object::set(const char* key, std::unique_ptr<VluBase> vlu)
 {
-  if (isChildOf(vlu.get())) throw std::string("Cyclic dependency");
+  if (isChildOf(vlu.get())) throw Exception("Cyclic dependency");
   vlu->setParent(this);
   m_vlu.objVlu->insert_or_assign(std::string(key), std::move(vlu));
 }
@@ -701,7 +799,9 @@ Object::get(const char *key) const
   auto iter = m_vlu.objVlu->find(key);
   if (iter != m_vlu.objVlu->end())
     return iter->second.get();
-  throw std::string("Key ") + key + " not found in object!";
+  std::stringstream msg;
+  msg << "Key " << key << " not found in object!";
+  throw Exception(msg.str().c_str());
 }
 
 bool
@@ -720,7 +820,9 @@ Object::remove(const char* key)
     ptr->setParent(nullptr);
     return ptr;
   }
-  throw std::string("Key ") + key + " not found in object!";
+  std::stringstream msg;
+  msg << "Key " << key << " not found in object!";
+  throw Exception(msg.str().c_str());
 }
 
 std::vector<std::string>
@@ -765,8 +867,10 @@ void expect(const char *needle, std::stringstream& jsn) {
     int ch = jsn.get();
     if (ch != *needle) {
       jsn.unget();
-      throw std::string("Expected '") + needle + "' near: " +
-              jsn.str().substr(jsn.tellg(), 20);
+      std::stringstream msg;
+      msg << "Expected '" << needle << "' near: "
+          << jsn.str().substr(jsn.tellg(), 20);
+      throw Exception(msg.str().c_str());
     }
     needle++;
   }
@@ -788,7 +892,9 @@ VluType parseNumber(std::stringstream& jsn) {
     else if ((ch < '0' || ch > '9') && ch != 'e' &&
          ch != 'E' && ch != '-' && ch != '.')
     {
-      throw std::string("Invalid ch:") + (char)ch + " in number.";
+      std::stringstream msg;
+      msg <<"Invalid ch:" << (char)ch << " in number.";
+      throw Exception(msg.str().c_str());
     }
     buf += ch;
     prev = ch;
@@ -836,8 +942,11 @@ VluType parseValue(std::stringstream& jsn) {
   case '-': case '+': case '0': case '1': case '2': case '3':
   case '4': case '5': case '6': case '7': case '8': case '9':
     return parseNumber(jsn);
-  default:
-    throw std::string("Unhandled ch: ") + (char)ch;
+  default: {
+    std::stringstream msg;
+    msg << "Unhandled ch: " << (char)ch;
+    throw Exception(msg.str().c_str());
+  }
   }
   return std::make_unique<Undefined>();
 }
@@ -889,7 +998,9 @@ VluType Json::parse(std::stringstream& jsn) {
     case '[':
       return parseArray(jsn);
     default:
-      throw std::string("Invalid in root ") + (char)ch;
+      std::stringstream msg;
+      msg << "Invalid in root " << (char)ch;
+      throw Exception(msg.str().c_str());
     }
   }
   return std::make_unique<Undefined>();
