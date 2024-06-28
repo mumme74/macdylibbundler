@@ -36,18 +36,18 @@ THE SOFTWARE.
 /// Strip the first dir
 /// ie ./name -> name,
 ///    \@rpath/dir/name -> dir/name
-std::string stripPrefix(const std::string& in);
+std::string stripPrefix(std::string_view in);
 /// Strip the last '/'
-std::string stripLastSlash(const std::string& in);
+std::string stripLastSlash(std::string_view in);
 /// Trim trailing whitespace
-std::string rtrim(const std::string &in);
+std::string rtrim(std::string_view in);
 /// split str on delimiters into vector<string>
 std::vector<std::string> tokenize(
-  const std::string& str,
-  const std::string& delimiters);
+  std::string_view str,
+  std::string_view delimiters);
 
 // print msg to stderr and exit
-void exitMsg(const std::string& msg,
-                 std::error_code err = std::error_code());
+void exitMsg(std::string_view msg,
+             std::error_code err = std::error_code());
 
 #endif // COMMON_H

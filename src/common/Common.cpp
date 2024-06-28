@@ -31,7 +31,7 @@ THE SOFTWARE.
 
 
 std::vector<std::string>
-tokenize(const std::string& str, const std::string& delimiters)
+tokenize(std::string_view str, std::string_view delimiters)
 {
   std::vector<std::string> tokens;
 
@@ -44,7 +44,7 @@ tokenize(const std::string& str, const std::string& delimiters)
   while (str.npos != pos || str.npos != lastPos)
   {
       // found a token, add it to the vector.
-      tokens.push_back(str.substr(lastPos, pos - lastPos));
+      tokens.push_back(std::string(str.substr(lastPos, pos - lastPos)));
 
       // skip delimiters.  Note the "not_of"
       lastPos = str.find_first_not_of(delimiters, pos);
@@ -55,28 +55,28 @@ tokenize(const std::string& str, const std::string& delimiters)
   return tokens;
 }
 
-std::string stripPrefix(const std::string& in)
+std::string stripPrefix(std::string_view in)
 {
   auto idx = in.rfind("/");
   if (idx != in.npos)
-      return in.substr(idx+1);
-  return in;
+      return in.substr(idx+1).data();
+  return in.data();
 }
 
-std::string stripLastSlash(const std::string& in)
+std::string stripLastSlash(std::string_view in)
 {
   return rtrim(in).substr(0, in.rfind("/"));
 }
 
-std::string rtrim(const std::string &in) {
-  std::string s = in;
+std::string rtrim(std::string_view in) {
+  std::string s{in};
   s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c){ return !std::isspace(c); }).base(), s.end());
   return s;
 }
 
 
-void exitMsg(const std::string& msg,
-                 std::error_code err /* = std::error_code()*/)
+void exitMsg(std::string_view msg,
+             std::error_code err /* = std::error_code()*/)
 {
   std::cerr << msg;
   int code = 1;
