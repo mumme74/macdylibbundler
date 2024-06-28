@@ -99,7 +99,8 @@ int main (int argc, const char * argv[])
     Settings::init(argc, argv);
     args.parse(argc, argv);
 
-    if(not Settings::bundleLibs() and Settings::fileToFixAmount()<1)
+    auto amount = Settings::srcFiles().size();
+    if(!Settings::bundleLibs() && amount < 1)
     {
         showHelp();
         exit(0);
@@ -108,9 +109,8 @@ int main (int argc, const char * argv[])
     std::cout << "* Collecting dependencies\n";
     DylibBundler bundler{};
 
-    const int amount = Settings::fileToFixAmount();
-    for(int n=0; n<amount; n++)
-        bundler.collectDependencies(Settings::srcFileToFix(n));
+    for(const auto& file : Settings::srcFiles())
+        bundler.collectDependencies(file.src);
 
     bundler.collectSubDependencies();
     if (!Settings::shouldOnlyRunScripts())

@@ -28,50 +28,55 @@ THE SOFTWARE.
 
 #include <string>
 #include <vector>
+#include <filesystem>
 #include "Json.h"
+#include "Types.h"
 
 class Dependency
 {
-    // origin
-    std::string original_file; // the file as it is in bin/lib
-    std::string canonical_file; // as original_file but with symlinks resolved
-    std::string prefix;
-    std::vector<std::string> symlinks;
-    bool framework;
-
-    // initialize function to be able to search many times
-    bool findPrefix(std::string &path, const std::string& dependent_file);
-
 public:
-    Dependency(const std::string& path, const std::string& dependent_file);
+    Dependency(PathRef path, PathRef dependent_file);
 
-    void print();
+    void print() const;
 
-    std::string getOriginalFileName() const;
-    std::string getOriginalPath() const { return prefix+getOriginalFileName(); }
-    std::string getCanonicalFileName() const;
-    std::string getCanonicalPath() const { return prefix+getCanonicalFileName(); }
-    std::string getInstallPath();
-    std::string getInnerPath();
-    //std::string getFrameworkRoot() const;
-    //std::string getFrameworkPath() const;
+    PathRef getCanonical() const { return m_canonical_file; }
+    PathRef getOriginal() const { return m_original_file; }
+    Path getInstallPath() const;
+    Path getInnerPath() const;
     std::string getFrameworkName() const;
-    bool isFramework() const { return framework; }
+    bool isFramework() const { return m_framework; }
 
-    void addSymlink(const std::string& s);
-    int getSymlinkAmount() const{ return symlinks.size(); }
+    const std::vector<Path>& getSymlinks() const {
+        return m_symlinks;
+    }
+    PathRef getPrefix() const{ return m_prefix; }
 
-    std::string getSymlink(const int i) const{ return symlinks[i]; }
-    std::string getPrefix() const{ return prefix; }
-
-    void copyYourself();
-    void fixFileThatDependsOnMe(const std::string& file);
+    void copyMyself() const;
+    void fixFileThatDependsOnMe(PathRef file) const;
 
     // Compares the given dependency with this one. If both refer to the same file,
     // it returns true and merges both entries into one.
     bool mergeIfSameAs(Dependency& dep2);
 
     Json::VluType toJson() const;
+
+private:
+
+    void addSymlink(PathRef link);
+
+    // initialize function to be able to search many times
+    bool findPrefix(PathRef path, PathRef dependent_file);
+
+    // origin
+    Path m_original_file; // the file as it is in bin/lib
+    Path m_canonical_file; // as original_file but with symlinks resolved
+    Path m_prefix;
+    std::vector<Path> m_symlinks;
+    bool m_framework;
+
+    // if some libs are missing prefixes, this will be set to true
+    // more stuff will then be necessary to do
+    bool m_missing_prefixes = false;
 };
 
 

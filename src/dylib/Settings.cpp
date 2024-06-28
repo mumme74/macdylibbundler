@@ -34,6 +34,8 @@ THE SOFTWARE.
 #include "Common.h"
 #include "Utils.h"
 
+namespace fs= std::filesystem;
+
 //initialize the dylib search paths
 void initSearchPaths(){
     //Check the same paths the system would search for dylibs
@@ -81,17 +83,23 @@ void initAppBundleScripts(int argc, const char* argv[]) {
             if (std::find(skip.begin(), skip.end(), entry.path().filename()) != skip.end())
             { continue; } // skip
 
-            if (isExecutable(entry.path())) {
-                Settings::setAppBundleScript(entry.path());
+            if (isExecutable(Path(entry.path()))) {
+                Settings::setAppBundleScript(entry.path().string());
             }
         }
     }
 }
 
-std::string lookUpOTool(std::string_view prefix) {
-    static std::string oToolCmd = "";
-    if (oToolCmd.size())
-        return oToolCmd;
+std::string lookUpTool(
+    const std::string& prefix,
+    const std::string& tool
+) {
+    static std::map<std::string, std::string> cache;
+    auto found = cache.find(tool);
+    if (found != cache.end())
+        return found->second;
+
+    std::string toolCmd;
 
     auto testCmd = [&](std::string_view cmd)->bool {
         FILE* proc = popen(cmd.data(), "r");
@@ -100,31 +108,43 @@ std::string lookUpOTool(std::string_view prefix) {
         int wstatus;
         if (wait(&wstatus) == -1)
             return false;
-        if (WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0) {
-            oToolCmd = cmd;
+        auto code = WEXITSTATUS(wstatus);
+        if (WIFEXITED(wstatus) && code < 127) {
+            toolCmd = cmd;
+            cache[tool] = toolCmd;
             pclose(proc);
+            std::cout << toolCmd << ": found\n";
             return true;
         }
         return false;
     };
 
-    if (testCmd(std::string{prefix}+"otool"))
-        return oToolCmd;
-    if (testCmd(std::string{prefix}+"llvm-otool"))
-        return oToolCmd;
+    if (testCmd(prefix + tool))
+        return toolCmd;
+    if (testCmd(prefix+"llvm-"+tool))
+        return toolCmd;
+    else if (testCmd(std::regex_replace("llvm-"+tool,
+                     std::regex("_"), "-"))
+    ) {
+        return toolCmd;
+    }
     if (testCmd("llvm-strip -V")) {
         auto output = system_get_output("llvm-strip -V");
         std::regex re{"version\\s+(\\d+)"};
         std::smatch match;
         if (std::regex_search(output, match, re)) {
-            if (testCmd(std::string{"llvm-otool-"} + match.str(1))) {
-                std::cout << oToolCmd << ": found\n";
-                return oToolCmd;
+            if (testCmd(std::string{"llvm-"+tool+"-"} + match.str(1)))
+                return toolCmd;
+            else if (testCmd(std::regex_replace(
+                        "llvm-"+tool+"-"+match.str(1),
+                        std::regex("_"), "-"))
+            ) {
+                return toolCmd;
             }
         }
     }
 
-    std::cerr << "**Failed to find either otool or llvm-otool!";
+    std::cerr << "**Failed to find either "+tool+" or llvm-"+tool+"!\n";
     exit(1);
 }
 
@@ -155,70 +175,72 @@ bool bundleLibs_bool = false;
 bool bundleLibs(){ return bundleLibs_bool; }
 void setBundleLibs(bool on){ bundleLibs_bool = on; }
 
-std::string dest_folder_str = "./libs/";
-const std::string destFolder()
+Path dest_folder{"./libs/"};
+Path destFolder()
 {
     if (createAppBundle())
         return appBundleExecDir() /
-            stripPrefix(stripLastSlash(dest_folder_str)) / "";
-    return dest_folder_str;
+            stripPrefix(stripLastSlash(dest_folder.string())) / "";
+    return dest_folder;
 }
 
-void setDestFolder(const std::string& path)
+void setDestFolder(std::string_view path)
 {
-    dest_folder_str = path;
-    // fix path if needed so it ends with '/'
-    if( dest_folder_str[ dest_folder_str.size()-1 ] != '/' )
-        dest_folder_str += "/";
+    dest_folder = path;
 }
 
 std::string prefixTools_str = "";
-const std::string prefixTools() { return prefixTools_str; }
-void setPrefixTools(const std::string& prefixTools)
+std::string prefixTools() { return prefixTools_str; }
+void setPrefixTools(std::string_view prefixTools)
 {
     prefixTools_str = prefixTools;
 }
 
 std::string otool_cmd = "", install_name_cmd = "";
 /// give absolute path to otool
-void setOToolPath(const std::string& otoolPath)
+void setOToolPath(std::string_view otoolPath)
 {
     otool_cmd = otoolPath;
 }
 /// give absolute path to install_name_tool
-void setInstallNameToolPath(const std::string& installNamePath)
+void setInstallNameToolPath(std::string_view installNamePath)
 {
     install_name_cmd = installNamePath;
 }
 /// get cmd to use for otool
-const std::string otoolCmd()
+std::string otoolCmd()
 {
     if (otool_cmd.empty())
-        return lookUpOTool(prefixTools_str);
+        return lookUpTool(prefixTools_str, "otool");
     return otool_cmd;
 }
 /// get cmd to use for install_name_tool
-const std::string installNameToolCmd()
+std::string installNameToolCmd()
 {
     if (install_name_cmd.empty())
-        return prefixTools_str + "install_name_tool";
+        return lookUpTool(prefixTools_str, "install_name_tool");
     return install_name_cmd;
 }
 
 std::string codesign_str = "codesign";
-const std::string codeSign() { return codesign_str; }
-void setCodeSign(const std::string &codesign) { codesign_str = codesign; }
+std::string codeSign() { return codesign_str; }
+void setCodeSign(std::string_view codesign) { codesign_str = codesign; }
 
-std::vector<std::string> files;
-void addFileToFix(const std::string& path){ files.push_back(path); }
-int fileToFixAmount(){ return files.size(); }
-const std::string srcFileToFix(const int n) { return files[n]; }
-const std::string outFileToFix(const int n) {
-    if (createAppBundle()) {
-        auto file = std::filesystem::path(files[n]).filename();
-        return appBundleExecDir() / file;
+std::vector<Path> files;
+void addFileToFix(std::string_view path){
+    files.push_back(Path(path.data()));
+}
+std::vector<Files> srcFiles() {
+    std::vector<Files> f;
+    for (PathRef file : files) {
+        Files pair;
+        pair.out = createAppBundle()
+                 ? appBundleExecDir() / file.filename()
+                 : file;
+        pair.src = file;
+        f.emplace_back(pair);
     }
-    return files[n];
+    return f;
 }
 
 bool create_app_bundle = false;
@@ -230,26 +252,26 @@ void setCreateAppBundle(bool on) {
     setBundleFrameworks(on);
 }
 
-std::filesystem::path app_bundle_path;
-const std::filesystem::path appBundlePath() {
+Path app_bundle_path;
+Path appBundlePath() {
     auto path = app_bundle_path.empty() ?
-        std::filesystem::path(files.front()) : app_bundle_path;
+        Path(files.front()) : app_bundle_path;
     auto name = path.filename().string();
     if (name.rfind(".app") != name.size() -1) name+=".app";
     path.replace_filename(name);
     return path;
 }
-void setAppBundlePath(const std::string& path) {
+void setAppBundlePath(std::string_view path) {
     auto n = path.substr(path.find("/")+1);
     app_bundle_path = n.substr(0, n.rfind("/")-1);
     setCreateAppBundle(true);
 }
 
-std::filesystem::path _scriptDir{};
-std::vector<std::filesystem::path> all_appBundleScripts;
+Path _scriptDir{};
+std::vector<Path> all_appBundleScripts;
 bool scriptsPrevented = false;
 bool scriptsOnly = false;
-void setAppBundleScript(const std::filesystem::path script) {
+void setAppBundleScript(Path script) {
     if (!std::filesystem::exists(script)) {
         exitMsg(std::string("Script ") + script.string() + "does not exist.");
 
@@ -260,16 +282,16 @@ void setAppBundleScript(const std::filesystem::path script) {
         exitMsg(std::string("Scripts are prevented, can't add ")
                 + script.string());
     }
-    all_appBundleScripts.push_back(std::filesystem::path(script));
+    all_appBundleScripts.push_back(Path(script));
 }
 /// reference to all app bundle scripts which should run after appBundle is complete
-std::vector<std::filesystem::path>& appBundleScripts() {
+std::vector<Path>& appBundleScripts() {
     return all_appBundleScripts;
 }
-const std::filesystem::path& scriptDir() {
+PathRef& scriptDir() {
     return _scriptDir;
 }
-void setScriptsDir(std::filesystem::path dir)
+void setScriptsDir(Path dir)
 {
     _scriptDir = dir;
 }
@@ -285,16 +307,16 @@ bool shouldOnlyRunScripts() {
     return scriptsOnly;
 }
 
-const std::filesystem::path appBundleContentsDir() {
+Path appBundleContentsDir() {
     return appBundlePath() / "Contents" / "";
 }
-const std::filesystem::path appBundleExecDir() {
+Path appBundleExecDir() {
     return appBundleContentsDir() / "MacOS" / "";
 }
 
-std::filesystem::path plist_path;
-const std::filesystem::path& infoPlist() { return plist_path; }
-bool setInfoPlist(const std::string& plist) {
+Path plist_path;
+PathRef infoPlist() { return plist_path; }
+bool setInfoPlist(std::string_view plist) {
     if (std::filesystem::exists(plist)) {
         plist_path = plist;
         return true;
@@ -302,79 +324,72 @@ bool setInfoPlist(const std::string& plist) {
     return false;
 }
 
-std::string inside_path_str;
-const std::string inside_lib_path(){
-    if (inside_path_str.empty()) {
-        auto dir = stripLastSlash(dest_folder_str);
+Path inside_path;
+Path inside_lib_path(){
+    if (inside_path.empty()) {
+        auto dir = stripLastSlash(dest_folder.string());
         if (dir[0] == '.' && (dir[1] == '.' || dir[1] == '/'))
             dir = dir.substr(2);
         else if (dir[0] == '/')
             dir = dir.substr(1);
         return std::string("@executable_path/") + dir + "/";
     }
-    return inside_path_str;
+    return inside_path;
 }
-void set_inside_lib_path(const std::string& p)
+void set_inside_lib_path(std::string_view p)
 {
-    inside_path_str = p;
-    // fix path if needed so it ends with '/'
-    if( inside_path_str[ inside_path_str.size()-1 ] != '/' )
-        inside_path_str += "/";
+    inside_path = p;
 }
-const std::string inside_framework_path() {
+Path inside_framework_path() {
     if (createAppBundle())
-        return "@rpath/Frameworks/";
-    auto path = stripLastSlash(inside_lib_path());
+        return Path("@rpath/Frameworks/");
+    auto path = stripLastSlash(inside_lib_path().string());
     return path.substr(0, path.find("/")) + "/Frameworks/";
 }
 
-std::vector<std::string> prefixes_to_ignore;
-void ignore_prefix(std::string prefix)
+std::vector<Path> prefixes_to_ignore;
+void ignore_prefix(Path prefix)
 {
-    if( prefix[ prefix.size()-1 ] != '/' ) prefix += "/";
     prefixes_to_ignore.push_back(prefix);
 }
 
-bool isSystemLibrary(const std::string& prefix)
+bool isSystemLibrary(PathRef prefix)
 {
-    if(prefix.find("/usr/lib/") == 0) return true;
-    if(prefix.find("/System/Library/") == 0) return true;
+    if(prefix.upto("lib") == Path("/usr/lib")) return true;
+    if(prefix.upto("Library") == Path("/System/Library")) return true;
 
     return false;
 }
 
-bool isPrefixIgnored(const std::string& prefix)
+bool isPrefixIgnored(PathRef prefix)
 {
-    const int prefix_amount = prefixes_to_ignore.size();
-    for(int n=0; n<prefix_amount; n++)
-    {
-        if(prefix.compare(prefixes_to_ignore[n]) == 0) return true;
+    for(const auto& pref : prefixes_to_ignore) {
+        if(pref == prefix)
+            return true;
     }
 
     return false;
 }
 
-bool isPrefixBundled(const std::string& prefix)
+bool blacklistedPath(PathRef prefix)
 {
     if(!Settings::bundleFrameworks() &&
-        prefix.find(".framework") != std::string::npos)
-    { return false; }
-    if(prefix.find("@executable_path") != std::string::npos) return false;
-    if(isSystemLibrary(prefix)) return false;
-    if(isPrefixIgnored(prefix)) return false;
+        prefix.before(".framework") != prefix)
+    { return true; }
+    if(prefix.before("@executable_path") == "") return true;
+    if(isSystemLibrary(prefix)) return true;
+    if(isPrefixIgnored(prefix)) return true;
 
-    return true;
+    return false;
 }
 
-std::vector<std::string> searchPaths;
-void addSearchPath(const std::string& path){
-  if( path[path.size() - 1] != '/' )
-    searchPaths.push_back(path + "/");
-  else
-    searchPaths.push_back(path);
+std::vector<Path> _searchPaths;
+void addSearchPath(Path path){
+    _searchPaths.emplace_back(path);
 }
-int searchPathAmount(){ return searchPaths.size(); }
-const std::string searchPath(const int n){ return searchPaths[n]; }
+const std::vector<Path>& searchPaths(){
+    return _searchPaths;
+}
 
 bool is_verbose = false;
 void setVerbose(bool on) { is_verbose = on; }
@@ -383,10 +398,10 @@ bool verbose() { return is_verbose; }
 bool bundle_frameworks = false;
 bool bundleFrameworks() { return bundle_frameworks; }
 void setBundleFrameworks(bool on) { bundle_frameworks = on; }
-const std::string frameworkDir() {
-    return bundle_frameworks ?
+Path frameworkDir() {
+    return (bundle_frameworks ?
         appBundleContentsDir() / "Frameworks" / "" :
-            std::filesystem::path(destFolder());
+            Path(destFolder())).string();
 }
 
 std::unique_ptr<Json::Object> toJson() {

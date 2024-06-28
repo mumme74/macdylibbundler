@@ -42,7 +42,10 @@ THE SOFTWARE.
 
 namespace fs = std::filesystem;
 
-void cleanupFramwork(const fs::path frameworkPath, std::vector<std::string> keep) {
+void cleanupFramwork(
+    const fs::path frameworkPath,
+    std::vector<std::string> keep
+) {
     std::error_code err;
     keep.push_back("Versions");
     keep.push_back("Resources");
@@ -65,7 +68,7 @@ void cleanupFramwork(const fs::path frameworkPath, std::vector<std::string> keep
     std::vector<std::string> k{"Current"};
     auto curPath = frameworkPath / "Versions" / "Current";
     if (fs::is_symlink(curPath, err))
-        k.push_back(fs::read_symlink(curPath));
+        k.push_back(fs::read_symlink(curPath).c_str());
     clean(frameworkPath / "Versions", k);
     // inside the current versions dir
     clean(frameworkPath / "Versions" / k.back(), keep);
@@ -74,238 +77,242 @@ void cleanupFramwork(const fs::path frameworkPath, std::vector<std::string> keep
     clean(frameworkPath, keep);
 }
 
-void installId(const std::string& innerPath, const std::string& installPath){
+void installId(
+    std::filesystem::path innerPath,
+    std::filesystem::path installPath
+){
     // Fix the lib's inner name
-    std::string command = Settings::prefixTools() + "install_name_tool -id \"" + innerPath + "\" \"" + installPath + "\"";
-    if( systemp( command ) != 0 )
-        exitMsg(std::string("\n\nError : An error occurred while trying to change identity of library ") + installPath);
+    std::stringstream ss;
+    ss << Settings::installNameToolCmd() + " -id \""
+       << innerPath << "\" \"" << installPath << "\"";
+    if( systemp(ss.str()) != 0 ) {
+        ss << "\n\nError : An error occurred while trying"
+           << " to change identity of library " << installPath;
+        exitMsg(ss.str());
+    }
 }
 
-// if some libs are missing prefixes, this will be set to true
-// more stuff will then be necessary to do
-bool missing_prefixes = false;
 
-Dependency::Dependency(const std::string& path, const std::string& dependent_file)
-  : framework(path.find(".framework") != std::string::npos)
+Dependency::Dependency(PathRef path, PathRef dependent_file) :
+    m_original_file{path}, m_canonical_file{},
+    m_prefix{}, m_symlinks{},
+    m_framework(path.before(".framework") != path),
+    m_missing_prefixes{false}
 {
-    auto pathTrim = fs::path(rtrim(path));
     std::error_code err;
-    if (DylibBundler::isRpath(pathTrim)) {
-        original_file = DylibBundler::instance()->
-            searchFilenameInRpaths(pathTrim, dependent_file);
-        canonical_file = original_file;
+    if (DylibBundler::isRpath(path)) {
+        m_canonical_file = DylibBundler::instance()->
+            searchFilenameInRPaths(path, dependent_file);
     } else {
-      original_file = pathTrim;
-
-      if (fs::is_symlink(pathTrim, err)) {
-        canonical_file = fs::read_symlink(pathTrim, err);
-      } else if (err) {
-        canonical_file = fs::canonical(original_file, err);
-        if (err) canonical_file = pathTrim;
-      } else {
-        canonical_file = original_file; // no idea what it is?
-      }
+        if (fs::is_symlink(path, err)) {
+            m_canonical_file = fs::read_symlink(path, err);
+        } else if (err) {
+            m_canonical_file = fs::canonical(m_original_file, err);
+            if (err) m_canonical_file = path;
+        } else {
+            m_canonical_file = m_original_file; // no idea what it is?
+        }
     }
 
-    // check if given path is a symlink
-    if (canonical_file != pathTrim) addSymlink(pathTrim);
+    if (fs::is_symlink(m_canonical_file))
+        addSymlink(path.string());
 
-    if (framework) {
-        auto idx = canonical_file.find(".framework");
-        auto root = canonical_file.substr(0, idx +10);
-        prefix = root.substr(0, root.rfind("/")+1);
-    } else
-        prefix = canonical_file.substr(0, canonical_file.rfind("/")+1);
-
-    if( !prefix.empty() && prefix[ prefix.size()-1 ] != '/' ) prefix += "/";
+    m_prefix = m_framework
+                ? m_canonical_file.before(".framework")
+                : m_canonical_file;
 
     // check if this dependency is in /usr/lib, /System/Library, or in ignored list
-    if (!Settings::isPrefixBundled(prefix)) return;
+    if (Settings::blacklistedPath(m_prefix)) return;
 
-    std::string p = pathTrim;
-    if (!findPrefix(p, dependent_file))
-        std::cerr << "\n/!\\ WARNING : Cannot resolve path '" << pathTrim.c_str() << "'" << std::endl;
+    if (!findPrefix(path, dependent_file))
+        std::cerr << "/!\\ WARNING : Cannot resolve path '"
+                  << path << "'\n\n";
 }
 
-// a separate method to be able to recursively find the string
-bool Dependency::findPrefix(std::string &path, const std::string& dependent_file)
-{
-    auto canonical_name = getCanonicalFileName();
+// a separate method to be able to recursively find prefix
+bool
+Dependency::findPrefix(PathRef path, PathRef dependent_file) {
+    const auto canonical_name = m_canonical_file.end_name();
     // check if the lib is in a known location
-    if( prefix.empty() || !fs::exists( prefix+canonical_name ) )
+    auto pat = fs::path(m_prefix) / canonical_name;
+    if( m_prefix.empty() || !fs::exists(pat) )
     {
-        auto fwName = framework ? getFrameworkName() + "/" : "";
+        auto fwName = getFrameworkName() + ".framework";
 
         //the paths contains at least /usr/lib so if it is empty we have not initialized it
-        int searchPathAmount = Settings::searchPathAmount();
 
         //check if file is contained in one of the paths
-        for( int i=0; i<searchPathAmount; ++i)
+        for(const auto& searchPath : Settings::searchPaths())
         {
-            std::string search_path = Settings::searchPath(i) + fwName;
-            if (fs::exists( search_path+canonical_name ))
+            auto search_path = searchPath / fwName;
+            auto path = search_path / canonical_name;
+            if (fs::exists(path))
             {
-                if (fs::is_symlink(search_path+canonical_name)) {
-                    canonical_file = fs::canonical(fs::path(search_path) /
-                        fs::read_symlink(search_path+canonical_name));
+                if (fs::is_symlink(path)) {
+                    m_canonical_file = (fs::canonical(fs::path(search_path) /
+                        fs::read_symlink(path))).string();
                 }
 
                 if (Settings::verbose())
-                    std::cout << "FOUND " << getCanonicalFileName() << " in " << search_path << std::endl;
-                prefix = search_path;
-                missing_prefixes = true; //the prefix was missing
+                    std::cout << "FOUND " << canonical_name
+                              << " in " << search_path << std::endl;
+                m_prefix = search_path;
+                if (!Settings::blacklistedPath(m_prefix))
+                    m_missing_prefixes = true; //the prefix was missing
                 break;
             }
         }
     }
 
     //If the location is still unknown, ask the user for search path
-    if( !Settings::isPrefixIgnored(prefix)
-        && ( prefix.empty() || !fs::exists( getCanonicalPath() ) ) )
+    if( !Settings::isPrefixIgnored(m_prefix)
+        && (m_prefix.empty() || !fs::exists(getCanonical())))
     {
-        std::cerr << "\n/!\\ WARNING : Library " << canonical_name << " has an incomplete name (location unknown)" << std::endl;
-        missing_prefixes = true;
+        std::cerr << "\n/!\\ WARNING : Library " << canonical_name
+                  << " has an incomplete name (location unknown)" << std::endl;
+        m_missing_prefixes = true;
 
         Settings::addSearchPath(getUserInputDirForFile(canonical_name));
         return findPrefix(path, dependent_file);
     }
 
-    return fs::exists(prefix + getCanonicalFileName());
+    return fs::exists(fs::path(m_prefix) / getCanonical());
 }
 
-void Dependency::print()
+void
+Dependency::print() const
 {
     std::cout << std::endl;
-    std::cout << " * " << getOriginalFileName() << " from ";
-    if (framework) std::cout << "framework ";
-    std::cout << prefix <<  std::endl;
+    std::cout << " * " << getOriginal().filename() << " from ";
+    if (m_framework) std::cout << "framework ";
+    std::cout << m_prefix <<  std::endl;
 
-    const int symamount = symlinks.size();
-    for(int n=0; n<symamount; n++)
-        std::cout << "     symlink --> " << symlinks[n].c_str() << std::endl;;
+    for(const auto& link : m_symlinks)
+        std::cout << "     symlink --> " << link
+                  << std::endl;;
 }
 
-std::string Dependency::getOriginalFileName() const
+std::string
+Dependency::getFrameworkName() const
 {
-    if (framework) {
-        auto idx = original_file.find(".framework");
-        auto path = original_file.substr(idx + 11);
-        return stripPrefix(path);
+    if (!m_framework) return "";
+    auto frmDir = m_original_file.upto(".framework")
+                                 .filename().string();
+    return frmDir.substr(0, frmDir.size()-10);
+}
+
+Path
+Dependency::getInstallPath() const
+{
+    if (m_framework) {
+        auto path = Settings::frameworkDir()
+                  / getFrameworkName()
+                  + ".framework"
+                  / m_canonical_file.after(".framework");
+        return path;
     }
-    return stripPrefix(original_file);
+    return Settings::destFolder() / getCanonical().filename();
 }
 
-std::string Dependency::getCanonicalFileName() const
+Path
+Dependency::getInnerPath() const
 {
-    if (framework) {
-        auto idx = canonical_file.find(".framework");
-        auto path = canonical_file.substr(idx + 11);
-        return stripPrefix(path);
+    if (m_framework) {
+        auto path = Settings::inside_framework_path()
+                  / m_canonical_file.from(".framework");
+        return path;
     }
-    return stripPrefix(canonical_file);
-}
-
-std::string Dependency::getFrameworkName() const
-{
-    if (!framework) return "";
-    auto idx = canonical_file.find(".framework");
-    auto path = stripPrefix(canonical_file.substr(0, idx + 10));
-    return path;
-}
-
-std::string Dependency::getInstallPath()
-{
-    if (framework) {
-        auto idx = canonical_file.rfind(".framework") + 10;
-        return Settings::frameworkDir() +
-                getFrameworkName() + canonical_file.substr(idx);
-    }
-    return Settings::destFolder() + getCanonicalFileName();
-}
-
-std::string Dependency::getInnerPath()
-{
-    if (framework) {
-        auto idx = canonical_file.rfind(".framework") + 10;
-        return Settings::inside_framework_path() +
-                getFrameworkName() + canonical_file.substr(idx);
-    }
-    return Settings::inside_lib_path() + getCanonicalFileName();
+    return Settings::inside_lib_path() / getCanonical().filename();
 }
 
 
-void Dependency::addSymlink(const std::string& s)
+void
+Dependency::addSymlink(PathRef link)
 {
     // calling std::find on this vector is not near as slow as an extra invocation of install_name_tool
-    if(std::find(symlinks.begin(), symlinks.end(), s) == symlinks.end()) symlinks.push_back(s);
+    const auto lnk = link.string();
+    if(std::find(m_symlinks.begin(), m_symlinks.end(), lnk) == m_symlinks.end())
+        m_symlinks.push_back(Path(link));
 }
 
 // Compares the given Dependency with this one. If both refer to the same file,
 // it returns true and merges both entries into one.
-bool Dependency::mergeIfSameAs(Dependency& dep2)
+bool
+Dependency::mergeIfSameAs(Dependency& dep2)
 {
-    if(dep2.getOriginalFileName().compare(getOriginalFileName()) == 0)
-    {
-        const int samount = getSymlinkAmount();
-        for(int n=0; n<samount; n++) {
-            dep2.addSymlink(getSymlink(n));
+    if(dep2.getOriginal().filename() == getOriginal().filename()) {
+        for(auto& link : m_symlinks) {
+            dep2.addSymlink(link);
         }
         return true;
     }
     return false;
 }
 
-void Dependency::copyYourself()
+void
+Dependency::copyMyself() const
 {
-    auto canonical_path = getCanonicalPath();
-    auto idx = canonical_path.find(".framework");
-    auto from = framework ? canonical_path.substr(0, idx + 10) : canonical_path,
-         to = framework ?
-               Settings::frameworkDir() + getFrameworkName() :
-                getInstallPath();
+    std::error_code err;
+    std::stringstream ss;
+    Path from, to;
+    if (m_framework) {
+        from = getCanonical().upto(".framework");
+        to = Settings::frameworkDir()
+           / getFrameworkName()
+           + ".framework";
+    } else {
+        from = getCanonical();
+        to = getInnerPath();
+    }
 
     if (Settings::verbose()) {
-        std::cout << "Copying dependency" << std::endl
-                  << "  - from " << from << std::endl
-                  << "  - to " << to << std::endl
-                  << "  - inner path " << getInnerPath() << std::endl
-                  << "  - install path " << getInstallPath() << std::endl
-                  << "  - is framework " << framework << std::endl;
+        std::cout << "Copying dependency" << "\n"
+                  << "  - from " << from << "\n"
+                  << "  - to " << to << "\n"
+                  << "  - inner path " << getInnerPath() << "\n"
+                  << "  - install path " << getInstallPath() << "\n"
+                  << "  - is framework " << m_framework << "\n";
     }
+
+    if (!fs::exists(to, err))
+        createFolder(to);
 
     auto copyOptions = fs::copy_options::update_existing
                      | fs::copy_options::recursive
                      | fs::copy_options::copy_symlinks;
-    fs::copy(from, to, copyOptions);
+    fs::copy(from, to, copyOptions, err);
+    if (err) {
+        ss << "\nFailed to copy " << from << " to: " << to
+           << ", error: " << err.message() << "\n";
+        exitMsg(ss.str());
+    }
 
-    if (framework)
-        cleanupFramwork(to, std::vector<std::string>{getCanonicalFileName()});
+    if (m_framework)
+        cleanupFramwork(to,
+            std::vector<std::string>{getCanonical().filename()});
 
     // Fix the lib's inner name
     installId(getInnerPath(), getInstallPath());
 }
 
-void Dependency::fixFileThatDependsOnMe(const std::string& file_to_fix)
+void
+Dependency::fixFileThatDependsOnMe(PathRef file) const
 {
     // for main lib file
-    changeInstallName(file_to_fix, original_file, getInnerPath());
+    changeInstallName(file, m_original_file, getInnerPath());
     // for symlinks
-    const int symamount = symlinks.size();
-    for(int n=0; n<symamount; n++)
-    {
-        changeInstallName(file_to_fix, symlinks[n], getInnerPath());
+    for(const auto& link : m_symlinks) {
+        changeInstallName(file, link, getInnerPath());
     }
 
     // FIXME - hackish
-    if(missing_prefixes)
+    if(m_missing_prefixes)
     {
         // for main lib file
-        changeInstallName(file_to_fix, original_file, getInnerPath());
+        changeInstallName(file, m_original_file, getInnerPath());
         // for symlinks
-        const int symamount = symlinks.size();
-        for(int n=0; n<symamount; n++)
-        {
-            changeInstallName(file_to_fix, symlinks[n], getInnerPath());
+        for(const auto& link : m_symlinks) {
+            changeInstallName(file, link, getInnerPath());
         }
     }
 }
@@ -316,16 +323,16 @@ Dependency::toJson() const
     using namespace Json;
 
     Array links{};
-    for (const auto& link : symlinks)
+    for (const auto& link : m_symlinks)
         links.push(String(link));
 
     auto obj = std::make_unique<Object>(
       std::initializer_list<std::pair<std::string, VluBase>>{
-        {"original_file", String(original_file)},
-        {"canonical_file", String(canonical_file)},
-        {"prefix", String(prefix)},
+        {"original_file", String(m_original_file)},
+        {"canonical_file", String(m_canonical_file)},
+        {"prefix", String(m_prefix)},
         {"symlinks", links},
-        {"isFramework", Bool(framework)}
+        {"isFramework", Bool(m_framework)}
       }
     );
     return obj;

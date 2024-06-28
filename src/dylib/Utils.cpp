@@ -34,57 +34,56 @@ THE SOFTWARE.
 #include <sys/stat.h>
 #include <unistd.h>
 #include <algorithm>
-using namespace std;
+#include <filesystem>
 
-bool fileExists(const std::string& filename)
+namespace fs = std::filesystem;
+
+void setWritable(PathRef file, bool isWritable)
 {
-    if (access( filename.c_str(), F_OK ) != -1)
-    {
-        return true; // file exists
-    }
-    else
-    {
-        //std::cout << "access(filename) returned -1 on filename [" << filename << "] I will try trimming." << std::endl;
-        std::string delims = " \f\n\r\t\v";
-        std::string rtrimmed = filename.substr(0, filename.find_last_not_of(delims) + 1);
-        std::string ftrimmed = rtrimmed.substr(rtrimmed.find_first_not_of(delims));
-        if (access( ftrimmed.c_str(), F_OK ) != -1)
-        {
-            return true;
-        }
-        else
-        {
-            //std::cout << "Still failed. Cannot find the specified file." << std::endl;
-            return false;// file doesn't exist
-        }
+    std::error_code err;
+    using prm = std::filesystem::perms;
+    using prmOpt = std::filesystem::perm_options;
+    std::filesystem::permissions(file,
+        prm::owner_write | prm::group_write | prm::group_write,
+        isWritable ? prmOpt::add : prmOpt::remove,
+        err
+    );
+    if (err) {
+        std::stringstream ss;
+        ss << "\n\nError : An error occurred while trying to "
+           << "change write permissions on file " << file
+           << " to " << (isWritable ? "+" : "-") << "w\n"
+           << "  error: " << err.message() << "\n";
+        exitMsg(ss.str());
     }
 }
 
-void copyFile(const string& from, const string& to)
+void copyFile(PathRef from, PathRef to)
 {
+    std::stringstream ss;
     bool override = Settings::canOverwriteFiles();
     if( from != to && !override )
     {
-        if(fileExists( to ))
-            exitMsg(std::string("\n\nError : File ") + to +
-                    " already exists. Remove it or enable overwriting.");
+        if(fs::exists(to)) {
+            ss << "\n\nError : File " << to <<" already exists. "
+               << "Remove it or enable overwriting.";
+            exitMsg(ss.str());
+        }
     }
 
-    string override_permission = string(override ? "-f " : "-n ");
-
     // copy file to local directory
-    string command = string("cp ") + override_permission + string("\"") + from + string("\" \"") + to + string("\"");
-    if( from != to && systemp( command ) != 0 )
-        exitMsg(std::string("\n\nError : An error occurred while trying to copy file ")
-                + from + " to " + to);
+    std::error_code err;
+    if (!std::filesystem::copy_file(from, to, err)) {
+        ss << "\n\nError : An error occurred while trying to copy "
+           << "file " << from << " to " << to << " err: "
+           << err.message() << "\n";
+        exitMsg(ss.str());
+    }
 
-    // give it write permission
-    string command2 = string("chmod +w \"") + to + "\"";
-    if( systemp( command2 ) != 0 )
-        exitMsg(std::string("\n\nError : An error occurred while trying to set write permissions on file ") + to);
+    setWritable(to, true);
 }
 
-std::string system_get_output(const std::string& cmd)
+std::string system_get_output(std::string_view cmd)
 {
     FILE * command_output = nullptr;
     char output[128];
@@ -95,7 +94,7 @@ std::string system_get_output(const std::string& cmd)
 
     try
     {
-        command_output = popen(cmd.c_str(), "r");
+        command_output = popen(cmd.data(), "r");
         if(command_output == NULL) throw;
 
         while(amount_read > 0)
@@ -111,7 +110,8 @@ std::string system_get_output(const std::string& cmd)
     }
     catch(...)
     {
-        std::cerr << "An error occured while executing command " << cmd.c_str() << std::endl;
+        std::cerr << "An error occured while executing command "
+                  << cmd.data() << std::endl;
         full_output = "";
     }
 
@@ -123,32 +123,40 @@ std::string system_get_output(const std::string& cmd)
     return full_output;
 }
 
-int systemp(const std::string& cmd)
+int systemp(std::string_view cmd)
 {
     if (Settings::verbose())
-        std::cout << "    " << cmd.c_str() << std::endl;
-    return system(cmd.c_str());
+        std::cout << "    " << cmd << std::endl;
+    return system(cmd.data());
 }
 
-void changeInstallName(const std::string& binary_file, const std::string& old_name, const std::string& new_name)
-{
-    std::string command = Settings::prefixTools() + "install_name_tool -change \"" + old_name + "\" \"" + new_name + "\" \"" + binary_file + "\"";
-    if( systemp( command ) != 0 )
-        exitMsg(std::string("\n\nError: An error occurred while trying to fix dependencies of ")
-                + binary_file);
+void changeInstallName(
+    PathRef binary_path,
+    PathRef old_path,
+    PathRef new_path
+) {
+    std::stringstream ss;
+    ss << Settings::installNameToolCmd() + " -change \""
+       << old_path << "\" \"" << new_path << "\" \""
+       << binary_path << "\"";
+
+    if( systemp(ss.str()) != 0 ) {
+        ss << "\n\nError: An error occurred while trying to fix "
+           << "dependencies of " << binary_path << "\n";
+        exitMsg(ss.str());
+    }
 }
 
-std::string getUserInputDirForFile(const std::string& filename)
+Path getUserInputDirForFile(PathRef filename)
 {
-    const int searchPathAmount = Settings::searchPathAmount();
-    for(int n=0; n<searchPathAmount; n++)
+    for(const auto& searchPath : Settings::searchPaths())
     {
-        auto searchPath = Settings::searchPath(n);
-        if( !searchPath.empty() && searchPath[ searchPath.size()-1 ] != '/' ) searchPath += "/";
-
-        if( fileExists( searchPath+filename ) )
+        auto path = searchPath / filename;
+        if(fs::exists(path))
         {
-            std::cerr << (searchPath+filename) << " was found. /!\\ DYLIBBUNDLER MAY NOT CORRECTLY HANDLE THIS DEPENDENCY: Manually check the executable with '"
+            std::cerr << (path) << " was found. /!\\ DYLIBBUNDLER "
+                      << "MAY NOT CORRECTLY HANDLE THIS DEPENDENCY:"
+                      << " Manually check the executable with '"
                       << Settings::otoolCmd() << " -L'" << std::endl;
             return searchPath;
         }
@@ -156,54 +164,108 @@ std::string getUserInputDirForFile(const std::string& filename)
 
     while (true)
     {
-        std::cout << "Please specify the directory where this library is located (or enter 'quit' to abort): ";  fflush(stdout);
+        std::cout << "Please specify the directory where this "
+                  << "library is located (or enter 'quit' to abort): ";
+        fflush(stdout);
 
         std::string prefix;
         std::cin >> prefix;
         std::cout << std::endl;
 
         if(prefix.compare("quit")==0) exit(1);
+        auto path = fs::path(prefix) / filename;
 
-        if( !prefix.empty() && prefix[ prefix.size()-1 ] != '/' ) prefix += "/";
-
-        if( !fileExists( prefix+filename ) )
+        if(!fs::exists(path))
         {
-            std::cerr << (prefix+filename) << " does not exist. Try again" << std::endl;
+            std::cerr << path << " does not exist. Try again"
+                      << std::endl;
             continue;
         }
         else
         {
-            std::cerr << (prefix+filename) << " was found. /!\\ DYLIBBUNDLER MAY NOT CORRECTLY HANDLE THIS DEPENDENCY: Manually check the executable with '"
-                      << Settings::otoolCmd() + " -L'" << std::endl;
+            std::cerr << path << " was found. /!\\ DYLIBBUNDLER "
+                      << "MAY NOT CORRECTLY HANDLE THIS DEPENDENCY: "
+                      << "Manually check the executable with '"
+                      << Settings::otoolCmd() << " -L'" << std::endl;
             Settings::addSearchPath(prefix);
-            return prefix;
+            return Path(prefix);
         }
     }
 }
 
-void adhocCodeSign(const std::string& file)
+void createFolder(PathRef folder) {
+    std::error_code err;
+    std::stringstream ss;
+        // ----------- check dest folder stuff ----------
+    bool dest_exists = fs::exists(folder, err);
+    if(dest_exists and Settings::canOverwriteDir())
+    {
+        std::cout << "* Erasing old directory "
+                  << folder << std::endl;
+        fs::remove_all(folder, err);
+        if(err) {
+            ss << "\n\nError : An error occurred while attempting to overwrite dest folder."
+               << " error: " << err.message() << "\n";
+            exitMsg(ss.str());
+        }
+
+        dest_exists = false;
+    }
+
+    if(!dest_exists)
+    {
+        if(Settings::canCreateDir() || Settings::createAppBundle())
+        {
+            std::cout << "* Creating directory "
+                      << folder << std::endl;
+            fs::create_directories(folder, err);
+            if (err) {
+                ss << "\n\nError : An error occurred while creating dest folder."
+                   << " error: " << err.message() << "\n";
+                exitMsg(ss.str());
+            }
+
+        }
+        else
+            exitMsg("\n\nError : Destination folder does not exist."
+                    " Create it or pass the appropriate flag for "
+                    "automatic dest folder creation.");
+    }
+}
+
+void adhocCodeSign(PathRef file)
 {
     if( Settings::canCodesign() == false ) return;
     if( Settings::verbose() )
         std::cout << "Signing '" << file << "'" << std::endl;
 
     // Add ad-hoc signature for ARM (Apple Silicon) binaries
-    std::string signCommand = Settings::codeSign() + " --force --deep --preserve-metadata=entitlements,requirements,flags,runtime --sign - \"" + file + "\"";
-    if( systemp( signCommand ) != 0 )
+    std::stringstream ss;
+    ss << Settings::codeSign()
+       << " --force --deep --preserve-metadata=entitlements"
+       <<",requirements,flags,runtime --sign - \"" << file << "\"";
+
+    auto signCommand = ss.str();
+    if( systemp(signCommand) != 0 )
     {
         // If the codesigning fails, it may be a bug in Apple's codesign utility.
         // A known workaround is to copy the file to another inode, then move it back
         // erasing the previous file. Then sign again.
-        std::cerr << "  * Error : An error occurred while applying ad-hoc signature to " << file << ". Attempting workaround" << std::endl;
+        std::cerr << "  * Error : An error occurred while applying "
+                  << "ad-hoc signature to " << file
+                  << ". Attempting workaround" << std::endl;
 
-        std::string machine = system_get_output("machine");
+        auto machine = system_get_output("machine");
         bool isArm = machine.find("arm") != std::string::npos;
-        std::string tempDirTemplate = std::string(std::getenv("TMPDIR") + std::string("dylibbundler.XXXXXXXX"));
-        std::string filename = file.substr(file.rfind("/")+1);
+        auto tempDirTemplate = std::string(std::getenv("TMPDIR") +
+                               std::string("dylibbundler.XXXXXXXX"));
+        std::string filename = fs::path(file).filename();
         char* tmpDirCstr = mkdtemp((char *)(tempDirTemplate.c_str()));
         if( tmpDirCstr == NULL )
         {
-            std::cerr << "  * Error : Unable to create temp directory for signing workaround" << std::endl;
+            std::cerr << "  * Error : Unable to create temp "
+                      << "directory for signing workaround"
+                      << std::endl;
             if( isArm )
             {
                 exit(1);
@@ -222,17 +284,26 @@ void adhocCodeSign(const std::string& file)
                 }
             }
         };
-        std::string command = std::string("cp -p \"") + file + "\" \"" + tmpFile + "\"";
-        runCommand(command, "  * Error : An error occurred copying " + file + " to " + tmpDir);
-        command = std::string("mv -f \"") + tmpFile + "\" \"" + file + "\"";
-        runCommand(command, "  * Error : An error occurred moving " + tmpFile + " to " + file);
-        command = std::string("rm -rf \"") + tmpDir + "\"";
-        systemp( command );
-        runCommand(signCommand, "  * Error : An error occurred while applying ad-hoc signature to " + file);
+        std::stringstream err, cmd;
+        cmd << "cp -p \"" << file << "\" \"" << tmpFile << "\"";
+        err << "  * Error : An error occurred copying " << file
+            << " to " << tmpDir;
+        runCommand(cmd.str(), err.str());
+
+        cmd << "mv -f \"" << tmpFile << "\" \"" << file << "\"";
+        err << "  * Error : An error occurred moving " << tmpFile
+            << " to " << file;
+        runCommand(cmd.str(), err.str());
+
+        cmd << "rm -rf \"" << tmpDir << "\"";
+        systemp(cmd.str());
+        err << "  * Error : An error occurred while applying "
+            << "ad-hoc signature to " << file;
+        runCommand(signCommand, err.str());
     }
 }
 
-bool isExecutable(std::filesystem::path path)
+bool isExecutable(PathRef path)
 {
     namespace fs = std::filesystem;
     using fs::perms;
@@ -246,75 +317,3 @@ bool isExecutable(std::filesystem::path path)
     }
     return false;
 }
-
-_bigendian::_bigendian(uint16_t vlu) {
-    if constexpr(little) {
-        uint8_t *a = (uint8_t*)(&vlu);
-        _bigendian::conv(u16arr, a, 2);
-    } else {
-        auto u = (uint16_t*)u16arr;
-        u[0] = vlu;
-    }
-}
-
-_bigendian::_bigendian(uint32_t vlu)  {
-    if constexpr(little) {
-        uint8_t *a = (uint8_t*)(&vlu);
-        _bigendian::conv(u32arr, a, 4);
-    } else{
-        auto u = (uint32_t*)u32arr;
-        u[0] = vlu;
-    }
-}
-
-_bigendian::_bigendian(uint64_t vlu)  {
-    if constexpr(little) {
-        uint8_t *a = (uint8_t*)(&vlu);
-        _bigendian::conv(u64arr, a, 8);
-    } else{
-        auto u = (uint64_t*)u64arr;
-        u[0] = vlu;
-    }
-}
-
-uint16_t
-_bigendian::u16native() {
-    if constexpr(little) {
-        uint16_t vlu;
-        uint8_t *a = (uint8_t*)(&vlu);
-        _bigendian::conv(a, u16arr, 2);
-        return vlu;
-    } else {
-        return (uint16_t)u16arr[0];
-    }
-}
-
-uint32_t
-_bigendian::u32native() {
-    if constexpr(little) {
-        uint32_t vlu;
-        uint8_t *a = (uint8_t*)(&vlu);
-        _bigendian::conv(a, u32arr, 4);
-        return vlu;
-    } else {
-        return (uint32_t)u32arr[0];
-    }
-}
-
-uint64_t
-_bigendian::u64native() {
-    if constexpr(little) {
-        uint64_t vlu;
-        uint8_t *a = (uint8_t*)(&vlu);
-        _bigendian::conv(a, u64arr, 8);
-        return vlu;
-    } else {
-        return (uint64_t)u64arr[0];
-    }
-}
-
-//static
-void _bigendian::conv(uint8_t* uTo, uint8_t* uFrom, size_t sz) {
-        for (size_t i = 0, j = sz-1; i < sz; ++i, --j)
-            uTo[i] = uFrom[j];
-    }

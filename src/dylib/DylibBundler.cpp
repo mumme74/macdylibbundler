@@ -33,6 +33,8 @@ THE SOFTWARE.
 #include <iostream>
 #include <fstream>
 #include <sys/param.h>
+#include <algorithm>
+#include <cassert>
 #ifdef __linux
 #include <linux/limits.h>
 #endif
@@ -40,7 +42,6 @@ THE SOFTWARE.
 #include "Utils.h"
 #include "Settings.h"
 #include "Dependency.h"
-#include <cassert>
 
 namespace fs = std::filesystem;
 
@@ -48,8 +49,9 @@ void mkAppBundleTemplate();
 void mkInfoPlist();
 
 DylibBundler::DylibBundler():
-    m_deps{}, m_deps_per_file{},
-    m_deps_collected{},
+    m_deps{},
+    m_deps_per_file{},
+    m_collected{},
     m_rpaths_per_file{},
     m_rpath_to_fullpath{}
 {
@@ -70,41 +72,38 @@ DylibBundler::instance()
 DylibBundler *DylibBundler::s_instance = nullptr;
 
 void
-DylibBundler::changeLibPathsOnFile(std::string file_to_fix)
-{
-    if (m_deps_collected.find(file_to_fix) == m_deps_collected.end())
-    {
+DylibBundler::changeLibPathsOnFile(PathRef file ) const {
+    if (m_collected.find(file.string()) == m_collected.end()) {
         std::cout << "    ";
-        collectDependencies(file_to_fix);
+        const_cast<DylibBundler*>(this)->collectDependencies(file);
         std::cout << "\n";
     }
-    std::cout << "  * Fixing dependencies on " << file_to_fix.c_str() << std::endl;
+    std::cout << "  * Fixing dependencies on " << file << std::endl;
 
-    std::vector<Dependency> deps_in_file = m_deps_per_file[file_to_fix];
-    const int dep_amount = deps_in_file.size();
-    for(int n=0; n<dep_amount; n++)
-    {
-        deps_in_file[n].fixFileThatDependsOnMe(file_to_fix);
+    for(const auto& dep : m_deps_per_file.at(file.string())) {
+        dep.fixFileThatDependsOnMe(file);
     }
 }
 
 bool // static
-DylibBundler::isRpath(const std::string& path)
+DylibBundler::isRpath(PathRef path)
 {
-    return path.find("@rpath") == 0 || path.find("@loader_path") == 0;
+    auto it = path.begin();
+    return it->filename() == "@rpath" ||
+           it->filename() == "@loader_path";
 }
 
 void
-DylibBundler::collectRpaths(const std::string& filename)
-{
-    if (!fileExists(filename))
+DylibBundler::collectRpaths(PathRef file) {
+    if (!fs::exists(file))
     {
-        std::cerr << "\n/!\\ WARNING : can't collect rpaths for nonexistent file '" << filename << "'\n";
+        std::cerr << "\n/!\\ WARNING : can't collect rpaths for nonexistent file '" << file << "'\n";
         return;
     }
 
-    std::string cmd = Settings::otoolCmd() + " -l \"" + filename + "\"";
-    std::string output = system_get_output(cmd);
+    std::stringstream cmd;
+    cmd << Settings::otoolCmd() << " -l \"" << file << "\"";
+    std::string output = system_get_output(cmd.str());
 
     auto lc_lines = tokenize(output, "\n");
 
@@ -112,7 +111,7 @@ DylibBundler::collectRpaths(const std::string& filename)
     bool read_rpath = false;
     while (pos < lc_lines.size())
     {
-        std::string line = lc_lines[pos];
+        auto line = lc_lines[pos];
         pos++;
 
         if (read_rpath)
@@ -125,8 +124,8 @@ DylibBundler::collectRpaths(const std::string& filename)
                 continue;
             }
             start_pos += 5;
-            std::string rpath = line.substr(start_pos, end_pos - start_pos);
-            m_rpaths_per_file[filename].push_back(rpath);
+            auto rpath = line.substr(start_pos, end_pos - start_pos);
+            m_rpaths_per_file[file.string()].append(rpath);
             read_rpath = false;
             continue;
         }
@@ -140,127 +139,119 @@ DylibBundler::collectRpaths(const std::string& filename)
 }
 
 std::string
-DylibBundler::searchFilenameInRpaths(const std::string& rpath_file, const std::string& dependent_file)
-{
-    char buffer[PATH_MAX];
-    std::string fullpath;
-    std::string suffix = std::regex_replace(rpath_file, std::regex("^@[a-z_]+path/"), "");
+DylibBundler::searchFilenameInRPaths(
+    PathRef rpath_file,
+    PathRef dependent_file
+) {
+    Path fullpath;
+    auto rpathStr = rpath_file.string();
+    std::string suffix = std::regex_replace(
+        rpathStr, std::regex("^@[a-z_]+path/"), "");
 
-    const auto check_path = [&](std::string path)
+    const auto check_path = [&](PathRef path)
     {
-        char buffer[PATH_MAX];
-        std::string file_prefix = dependent_file.substr(0, dependent_file.rfind('/')+1);
+        auto depParentDir = dependent_file.parent_path();
         if (dependent_file != rpath_file)
         {
-            std::string path_to_check;
-            if (path.find("@loader_path") != std::string::npos)
-            {
-                path_to_check = std::regex_replace(path, std::regex("@loader_path/"), file_prefix);
+            auto firstDir = path.begin()->filename();
+            if (firstDir == "@loader_path" || firstDir == "@rpath") {
+                std::error_code err;
+                auto canonical = fs::canonical(
+                    path.strip_prefix(), err);
+                if (!err) {
+                    fullpath = canonical;
+                    return true;
+                }
             }
-            else if (path.find("@rpath") != std::string::npos)
-            {
-                path_to_check = std::regex_replace(path, std::regex("@rpath/"), file_prefix);
-            }
-            if (realpath(path_to_check.c_str(), buffer))
-            {
-                fullpath = buffer;
-                m_rpath_to_fullpath[rpath_file] = fullpath;
-                return true;
-            }
+
+            return false;
         }
         return false;
     };
 
     // fullpath previously stored
-    if (m_rpath_to_fullpath.find(rpath_file) != m_rpath_to_fullpath.end())
+    if (m_rpath_to_fullpath.find(rpathStr) != m_rpath_to_fullpath.end())
     {
-        fullpath = m_rpath_to_fullpath[rpath_file];
+        fullpath = m_rpath_to_fullpath[rpathStr];
     }
     else if (!check_path(rpath_file))
     {
-        for (auto rpath : m_rpaths_per_file[dependent_file])
-        {
-            if (rpath[rpath.size()-1] != '/') rpath += "/";
-            if (check_path(rpath+suffix)) break;
+        for (const auto& rpath : m_rpaths_per_file[dependent_file.string()]) {
+            if (check_path(static_cast<Path>(rpath) / suffix))
+                break;
         }
-        if (m_rpath_to_fullpath.find(rpath_file) != m_rpath_to_fullpath.end())
+        if (m_rpath_to_fullpath.find(rpathStr) != m_rpath_to_fullpath.end())
         {
-            fullpath = m_rpath_to_fullpath[rpath_file];
+            fullpath = m_rpath_to_fullpath[rpathStr];
         }
     }
 
-    if (fullpath.empty())
-    {
-        const int searchPathAmount = Settings::searchPathAmount();
-        for (int n=0; n<searchPathAmount; n++)
-        {
-            std::string search_path = Settings::searchPath(n);
-            if (fileExists(search_path+suffix))
-            {
-                fullpath = search_path + suffix;
+    if (fullpath.empty()) {
+        for (const auto& searchPath : Settings::searchPaths()) {
+            if (fs::exists(searchPath / suffix)) {
+                fullpath = searchPath / suffix;
                 break;
             }
         }
 
-        if (fullpath.empty())
-        {
+        // let user tell the path to look in
+        if (fullpath.empty()) {
             std::cerr << "\n/!\\ WARNING : can't get path for '" << rpath_file << "'\n";
             auto dir = getUserInputDirForFile(suffix);
-            fullpath = dir + suffix;
-            if (realpath(fullpath.c_str(), buffer))
-            {
-                fullpath = buffer;
-                Settings::addSearchPath(dir);
-            }
+            fullpath = std::string(dir) + suffix;
+            std::error_code err;
+            auto canonical = fs::canonical(fullpath, err);
+            if (!err)
+                fullpath = canonical;
+            Settings::addSearchPath(dir);
         }
     }
 
     return fullpath;
 }
 
-std::string
-DylibBundler::searchFilenameInRpaths(const std::string& rpath_dep)
-{
-    return searchFilenameInRpaths(rpath_dep, rpath_dep);
-}
-
 void
-DylibBundler::fixRpathsOnFile(const std::string& original_file, const std::string& file_to_fix)
-{
+DylibBundler::fixRPathsOnFile(
+    PathRef original_file,
+    PathRef file_to_fix
+) {
     if (Settings::createAppBundle()) return; // don't change @rpath on app bundles
     std::vector<std::string> rpaths_to_fix;
-    std::map<std::string, std::vector<std::string> >::iterator found = m_rpaths_per_file.find(original_file);
-    if (found != m_rpaths_per_file.end())
-    {
-        rpaths_to_fix = found->second;
+
+    for (const auto& pair : m_rpaths_per_file){
+        if (pair.first == original_file) {
+            rpaths_to_fix.emplace_back(pair.second);
+            break;
+        }
     }
 
-    for (size_t i=0; i < rpaths_to_fix.size(); ++i)
-    {
-        std::string command = Settings::installNameToolCmd() + " -rpath \"" +
-                rpaths_to_fix[i] + "\" \"" + Settings::inside_lib_path() + "\" \"" + file_to_fix + "\"";
-        if ( systemp(command) != 0)
+    for (const auto& rpath : rpaths_to_fix) {
+        std::stringstream cmd;
+        cmd << Settings::installNameToolCmd() << " -rpath \""
+            << rpath << "\" \"" << Settings::inside_lib_path()
+            << "\" \"" << file_to_fix << "\"";
+        if ( systemp(cmd.str()) != 0)
         {
-            std::cerr << "\n\nError : An error occured while trying to fix dependencies of " << file_to_fix << std::endl;
+            std::cerr << "\n\nError : An error occurred while "
+                      << "trying to fix dependencies of "
+                      << file_to_fix << std::endl;
         }
     }
 }
 
 void
-DylibBundler::addDependency(const std::string& path, const std::string& filename)
-{
-    Dependency dep(path, filename);
+DylibBundler::addDependency(PathRef path, PathRef file
+) {
+    Dependency dep(path, file);
 
     // we need to check if this library was already added to avoid duplicates
     bool in_deps = false;
-    const int dep_amount = m_deps.size();
-    for(int n=0; n<dep_amount; n++)
-    {
-        if(dep.mergeIfSameAs(m_deps[n])) in_deps = true;
+    for(auto& dep : m_deps) {
+        if(dep.mergeIfSameAs(dep)) in_deps = true;
     }
 
     // check if this library was already added to |m_deps_per_file[filename]| to avoid duplicates
-    std::vector<Dependency> deps_in_file = m_deps_per_file[filename];
+    std::vector<Dependency> deps_in_file = m_deps_per_file[file.string()];
     bool in_deps_per_file = false;
     const int deps_in_file_amount = deps_in_file.size();
     for(int n=0; n<deps_in_file_amount; n++)
@@ -268,7 +259,7 @@ DylibBundler::addDependency(const std::string& path, const std::string& filename
         if(dep.mergeIfSameAs(deps_in_file[n])) in_deps_per_file = true;
     }
 
-    if(!Settings::isPrefixBundled(dep.getPrefix())) {
+    if(Settings::blacklistedPath(dep.getPrefix())) {
         if (Settings::verbose())
             std::cout << "*Ignoring dependency " << dep.getPrefix()
                       << " prefix not bundled" << std::endl;
@@ -276,28 +267,34 @@ DylibBundler::addDependency(const std::string& path, const std::string& filename
     }
 
     if(!in_deps) m_deps.push_back(dep);
-    if(!in_deps_per_file) m_deps_per_file[filename].push_back(dep);
+    if(!in_deps_per_file) m_deps_per_file[file.string()].push_back(dep);
 }
 
 /*
  *  Fill vector 'lines' with dependencies of given 'filename'
  */
 void
-DylibBundler::collectDependencies(const std::string& filename, std::vector<std::string>& lines)
-{
+DylibBundler::collectDep(
+    PathRef file,
+    std::vector<std::string>& lines
+) {
     // execute "otool -l" on the given file and collect the command's output
-    std::string cmd = Settings::otoolCmd() + " -l \"" + filename + "\"";
-    std::string output = system_get_output(cmd);
+    std::stringstream ss;
+    ss << Settings::otoolCmd() << " -l \"" << file << "\"";
+    std::string output = system_get_output(ss.str());
 
     if(output.find("can't open file")!=std::string::npos or output.find("No such file")!=std::string::npos or output.size()<1)
-        exitMsg(std::string("Cannot find file ") + filename + " to read its dependencies");
+        exitMsg(std::string("Cannot find file ") + file.string()
+                 + " to read its dependencies");
 
     // split output
     auto raw_lines = tokenize(output, "\n");
 
     bool searching = false;
     for(const auto& line : raw_lines) {
-        const auto &is_prefix = [&line](const char *const p) { return line.find(p) != std::string::npos; };
+        const auto &is_prefix = [&line](const char *const p) {
+            return line.find(p) != std::string::npos;
+        };
         if (is_prefix("cmd LC_LOAD_DYLIB") || is_prefix("cmd LC_REEXPORT_DYLIB"))
         {
             if (searching)
@@ -308,9 +305,10 @@ DylibBundler::collectDependencies(const std::string& filename, std::vector<std::
         else if (searching)
         {
             size_t found = line.find("name ");
-            if (found != std::string::npos)
-            {
-                lines.push_back('\t' + line.substr(found+5, std::string::npos));
+            if (found != std::string::npos) {
+                std::string ln{'\t'};
+                ln += line.substr(found+5, std::string::npos);
+                lines.push_back(ln);
                 searching = false;
             }
         }
@@ -318,16 +316,20 @@ DylibBundler::collectDependencies(const std::string& filename, std::vector<std::
 }
 
 void
-DylibBundler::collectDependencies(const std::string& filename)
+DylibBundler::collectDependencies(PathRef file)
 {
-    if (m_deps_collected.find(filename) != m_deps_collected.end()) return;
+    if (m_collected.find(file.string()) != m_collected.end())
+        return;
 
-    collectRpaths(filename);
+    collectRpaths(file);
 
     std::vector<std::string> lines;
-    collectDependencies(filename, lines);
+    collectDep(file, lines);
 
-    Settings::verbose() ? std::cout << std::endl << "Collect dependencies for '" + filename + "'" << std::endl : std::cout << ".";
+    Settings::verbose() ?
+        std::cout << std::endl << "Collect dependencies for '"
+                  << file.string() << "'" << std::endl
+        : std::cout << ".";
     fflush(stdout);
 
     for (const auto& line : lines)
@@ -335,7 +337,7 @@ DylibBundler::collectDependencies(const std::string& filename)
         if (line[0] != '\t') continue; // only lines beginning with a tab interest us
 
         // trim useless info, keep only library name
-        std::string dep_path = line.substr(1, line.rfind(" (") - 1);
+        auto dep_path = line.substr(1, line.rfind(" (") - 1);
 
         if (line.find(".framework") != std::string::npos &&
             !Settings::bundleFrameworks())
@@ -350,13 +352,13 @@ DylibBundler::collectDependencies(const std::string& filename)
         }
 
         if (Settings::verbose())
-          std::cout << "  adding: " << dep_path << " dependent file: " << filename <<std::endl;
+          std::cout << "  adding: " << dep_path << " dependent file: " << file <<std::endl;
         else std::cout << ".";
         fflush(stdout);
-        addDependency(dep_path, filename);
+        addDependency(Path(dep_path.data()), file);
     }
 
-    m_deps_collected[filename] = true;
+    m_collected[file.string()] = true;
 }
 
 void
@@ -365,16 +367,19 @@ DylibBundler::collectSubDependencies()
     // print status to user
     size_t dep_amount = m_deps.size();
 
-    // recursively collect each dependencie's dependencies
+    // recursively collect each dependency's dependencies
     while(true)
     {
-        dep_amount = m_deps.size();
-        for (size_t n=0; n<dep_amount; n++)
+        for (const auto& dep : m_deps)
         {
-            std::string original_path = m_deps[n].getOriginalPath();
-            Settings::verbose() ? std::cout << "* SubDependencies for: " + original_path << std::endl : std::cout << ".";
+            auto original_path = dep.getOriginal();
+            Settings::verbose() ?
+                std::cout << "* SubDependencies for: " << original_path << std::endl
+              : std::cout << ".";
             fflush(stdout);
-            if (isRpath(original_path)) original_path = searchFilenameInRpaths(original_path);
+            if (isRpath(original_path))
+                original_path = searchFilenameInRPaths(
+                    original_path, original_path);
 
             collectDependencies(original_path);
         }
@@ -394,47 +399,22 @@ DylibBundler::hasFrameworkDep() {
 
 void createDestDir()
 {
-    std::string dest_folder = Settings::destFolder();
-    std::cout << "* Checking output directory " << dest_folder.c_str() << std::endl;
+    std::error_code err;
+    std::stringstream ss;
+    auto dest_folder = Settings::destFolder();
+    std::cout << "* Checking output directory " << dest_folder << std::endl;
 
-    // ----------- check dest folder stuff ----------
-    bool dest_exists = fileExists(dest_folder);
-
-    if(dest_exists and Settings::canOverwriteDir())
-    {
-        std::cout << "* Erasing old output directory " << dest_folder.c_str() << std::endl;
-        std::string command = std::string("rm -r \"") + dest_folder + "\"";
-        if( systemp( command ) != 0)
-            exitMsg("\n\nError : An error occurred while attempting to overwrite dest folder.");
-
-        dest_exists = false;
-    }
-
-    if(!dest_exists)
-    {
-        if(Settings::canCreateDir())
-        {
-            std::cout << "* Creating output directory " << dest_folder.c_str() << std::endl;
-            std::string command = std::string("mkdir -p \"") + dest_folder + "\"";
-            if( systemp( command ) != 0)
-                exitMsg("\n\nError : An error occurred while creating dest folder.");
-
-        }
-        else
-            exitMsg("\n\nError : Dest folder does not exist. Create it or pass the appropriate flag for automatic dest dir creation.");
-    }
-
+    createFolder(dest_folder);
 }
 
 void
 DylibBundler::doneWithDeps_go()
 {
     std::cout << std::endl;
-    const int dep_amount = m_deps.size();
+
     // print info to user
-    for(int n=0; n<dep_amount; n++)
-    {
-        m_deps[n].print();
+    for(const auto& dep : m_deps) {
+        dep.print();
     }
     std::cout << std::endl;
 
@@ -445,35 +425,35 @@ DylibBundler::doneWithDeps_go()
     {
         createDestDir();
 
-        for(int n=dep_amount-1; n>=0; n--)
-        {
+        for(const auto& dep : m_deps) {
             if (Settings::verbose())
-                std::cout << "\n* Processing dependency " << m_deps[n].getInstallPath() << std::endl;
-            m_deps[n].copyYourself();
-            changeLibPathsOnFile(m_deps[n].getInstallPath());
-            fixRpathsOnFile(m_deps[n].getOriginalPath(), m_deps[n].getInstallPath());
-            adhocCodeSign(m_deps[n].getInstallPath());
+                std::cout << "\n* Processing dependency "
+                          << dep.getInstallPath() << std::endl;
+            dep.copyMyself();
+            changeLibPathsOnFile(dep.getInstallPath());
+            fixRPathsOnFile(dep.getOriginal(), dep.getInstallPath());
+            adhocCodeSign(dep.getInstallPath());
             if (Settings::verbose())
-                std::cout << "\n-- Done Processing dependency for " << m_deps[n].getInnerPath() << std::endl;
+                std::cout << "\n-- Done Processing dependency for "
+                          << dep.getInnerPath() << std::endl;
         }
     }
 
-    const int fileToFixAmount = Settings::fileToFixAmount();
-    for(int n=fileToFixAmount-1; n>=0; n--)
-    {
-        auto outFile = Settings::outFileToFix(n),
-             srcFile = Settings::srcFileToFix(n);
-        if (Settings::verbose())
-            std::cout << "\n* Processing " << srcFile
-                      << (outFile != srcFile ? std::string(" into ") + outFile : "")
-                      << std::endl;
-        copyFile(srcFile, outFile); // to set write permission or move
-        changeLibPathsOnFile(outFile);
-        fixRpathsOnFile(outFile, outFile);
-        adhocCodeSign(outFile);
+    for(const auto& files : Settings::srcFiles()) {
+        if (Settings::verbose()) {
+            std::cout << "\n* Processing " << files.src;
+            if (files.out != files.src)
+                std::cout << std::string(" into ") << files.out;
+            std::cout << std::endl;
+        }
+
+        copyFile(files.src, files.out); // to set write permission or move
+        changeLibPathsOnFile(files.out.string());
+        fixRPathsOnFile(files.src.string(), files.out.string());
+        adhocCodeSign(files.out.string());
         if (Settings::verbose())
             std::cout << "\n-- Done Processing dependency for "
-                      << srcFile << std::endl;
+                      << files.src << std::endl;
     }
 }
 

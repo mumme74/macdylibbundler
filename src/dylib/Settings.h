@@ -29,15 +29,20 @@ THE SOFTWARE.
 #include <vector>
 #include <filesystem>
 #include "Json.h"
+#include "Types.h"
 
 namespace Settings
 {
+struct Files {
+  Path src, out;
+};
+
 void init(int argc, const char* argv[]);
 
-bool isSystemLibrary(const std::string& prefix);
-bool isPrefixBundled(const std::string& prefix);
-bool isPrefixIgnored(const std::string& prefix);
-void ignore_prefix(std::string prefix);
+bool isSystemLibrary(PathRef prefix);
+bool blacklistedPath(PathRef prefix);
+bool isPrefixIgnored(PathRef prefix);
+void ignore_prefix(Path prefix);
 
 bool canOverwriteFiles();
 void setCanOverwriteFiles(bool permission);
@@ -58,40 +63,40 @@ bool bundleFrameworks();
 /// Set if we should bundle frameworks
 void setBundleFrameworks(bool on);
 /// path to Frameworks dir in app bundle or same as libs/ folder
-const std::string frameworkDir();
+Path frameworkDir();
 
-const std::string destFolder();
-void setDestFolder(const std::string& path);
+Path destFolder();
+void setDestFolder(std::string_view path);
 
 /// For cross compiling prefix otool and install_name_tool
 /// with prefix
-const std::string prefixTools();
+std::string prefixTools();
 /// Set cross compiling tool prefix
-void setPrefixTools(const std::string& prefixTools);
+void setPrefixTools(std::string_view prefixTools);
 /// give absolute path to otool
-void setOToolPath(const std::string& otoolPath);
+void setOToolPath(std::string_view otoolPath);
 /// give absolute path to install_name_tool
-void setInstallNameToolPath(const std::string& installNamePath);
+void setInstallNameToolPath(std::string_view installNamePath);
 /// get cmd to use for otool
-const std::string otoolCmd();
+std::string otoolCmd();
 /// get cmd to use for install_name_tool
-const std::string installNameToolCmd();
+std::string installNameToolCmd();
 
-const std::string codeSign();
-void setCodeSign(const std::string& codesign);
+std::string codeSign();
+void setCodeSign(std::string_view codesign);
 
 /// if we should create a app bundle
 bool createAppBundle();
 void setCreateAppBundle(bool on);
 /// The path to the app bundle
 /// ie: name.app
-const std::filesystem::path appBundlePath();
+Path appBundlePath();
 /// The path to the app
-void setAppBundlePath(const std::string& path);
+void setAppBundlePath(std::string_view path);
 /// Add a script which is run after appBundle is complete
-void setAppBundleScript(const std::filesystem::path script);
+void setAppBundleScript(Path script);
 /// reference to all app bundle scripts which should run after appBundle is complete
-std::vector<std::filesystem::path>& appBundleScripts();
+std::vector<Path>& appBundleScripts();
 /// prevent all appBundle scripts from beeing run
 void preventAppBundleScripts();
 /// only run script, nothing else
@@ -100,28 +105,25 @@ void setOnlyRunScripts();
 bool shouldOnlyRunScripts();
 /// Get the path to Contents directory in bundle
 ///  example: name.app/Contents
-const std::filesystem::path appBundleContentsDir();
+Path appBundleContentsDir();
 /// Get the path to exec directory in bundle
 ///  example: name.app/Contents/MacOS
-const std::filesystem::path appBundleExecDir();
+Path appBundleExecDir();
 /// Dir to app common scripts
-const std::filesystem::path& scriptDir();
+PathRef scriptDir();
 /// Path to Info.plist file
-const std::filesystem::path& infoPlist();
-bool setInfoPlist(const std::string& plist);
+PathRef infoPlist();
+bool setInfoPlist(std::string_view plist);
 
-void addFileToFix(const std::string& path);
-int fileToFixAmount();
-const std::string srcFileToFix(const int n);
-const std::string outFileToFix(const int n);
+void addFileToFix(std::string_view path);
+std::vector<Files> srcFiles();
 
-const std::string inside_lib_path();
-const std::string inside_framework_path();
-void set_inside_lib_path(const std::string& p);
+Path inside_lib_path();
+Path inside_framework_path();
+void set_inside_lib_path(std::string_view p);
 
-void addSearchPath(const std::string& path);
-int searchPathAmount();
-const std::string searchPath(const int n);
+void addSearchPath(Path path);
+const std::vector<Path>& searchPaths();
 
 
 bool verbose();

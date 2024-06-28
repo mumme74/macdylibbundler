@@ -33,52 +33,31 @@ THE SOFTWARE.
 #include <fstream>
 #include <filesystem>
 #include <array>
+#include "Types.h"
 
 class Library;
 
-bool fileExists(const std::string& filename);
-
-void copyFile(const std::string& from, const std::string& to);
+void setWritable(PathRef file);
+void copyFile(PathRef from, PathRef to);
 
 /// executes a command in the native shell and returns output in string
-std::string system_get_output(const std::string& cmd);
+std::string system_get_output(std::string_view cmd);
 
 /// like 'system', runs a command on the system shell, but also prints the command to stdout.
-int systemp(const std::string& cmd);
-void changeInstallName(const std::string& binary_file, const std::string& old_name, const std::string& new_name);
-std::string getUserInputDirForFile(const std::string& filename);
+int systemp(std::string_view cmd);
+void changeInstallName(
+  PathRef binary_path,PathRef old_path, PathRef new_path);
+Path getUserInputDirForFile(PathRef file);
+
+/// try to create a folder
+void createFolder(PathRef folder);
 
 /// sign `file` with an ad-hoc code signature: required for ARM (Apple Silicon) binaries
-void adhocCodeSign(const std::string& file);
+void adhocCodeSign(PathRef file);
 
 /// checks if file is executable
-bool isExecutable(std::filesystem::path path);
+bool isExecutable(PathRef path);
 
 
-/// @brief  convert an uint from native to bigendian and reverse again
-typedef union _bigendian  {
-private:
-    static constexpr uint32_t uint32_ = 0x01020304;
-    static constexpr uint8_t magic_ = (const uint8_t&)uint32_;
-    static constexpr bool little = magic_ == 0x04;
-    static constexpr bool big = magic_ == 0x01;
-    static_assert(little || big, "Cannot determine endianness!");
-    static void conv(uint8_t* uTo, uint8_t* uFrom, size_t sz);
-public:
-    static constexpr bool middle = magic_ == 0x02;
-    _bigendian(uint16_t vlu);
-    _bigendian(uint32_t vlu);
-    _bigendian(uint64_t vlu);
-
-    /// @brief bytes in bigendian order
-    uint8_t u16arr[2];
-    uint8_t u32arr[4];
-    uint8_t u64arr[8];
-    /// @brief go back to native again
-    uint16_t u16native();
-    uint32_t u32native();
-    uint64_t u64native();
-
-} bigendian_t;
 
 #endif // _utils_h_

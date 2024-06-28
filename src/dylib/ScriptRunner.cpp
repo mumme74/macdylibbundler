@@ -181,8 +181,8 @@ bool parentLoop(Pipes& pipes) {
             try {
                 jsn = Json::parse(input);
                 resInJson = true;
-            } catch (std::string e) {
-                std::cerr << e << "\n";
+            } catch (Json::Exception& e) {
+                std::cerr << e.what() << "\n";
                 return false;
             } catch (...) {}
         }
@@ -199,6 +199,9 @@ bool parentLoop(Pipes& pipes) {
 
             if (!parentValueResponse(out.file(), std::move(res)))
                 return false;
+        } catch (Json::Exception& e) {
+            std::cerr << e.what() << "\n";
+            return false;
         } catch (std::string e) {
             std::cerr << e << "\n";
             return false;
@@ -452,15 +455,22 @@ Json::VluType handleJsonReq(Json::VluType jsn)
 
 std::string handleSubProcessReq(const std::string& request)
 {
+    auto sendError = [&](const char* what) -> std::string {
+        auto res = std::make_unique<Json::Object>();
+        res->set("error", std::make_unique<Json::String>(what));
+        return res->serialize().str();
+    };
+
     try {
         auto jsn = Json::parse(request);
         if (!jsn || jsn->isUndefined())
             throw "Not a json Request";
         return handleJsonReq(std::move(jsn))->serialize().str();
+    } catch (Json::Exception& e) {
+        std::cerr << e.what() << "\n";
+        return sendError(e.what());
     } catch (std::string& e) {
-        std::cerr << e;
-        auto res = std::make_unique<Json::Object>();
-        res->set("error", std::make_unique<Json::String>(e));
-        return res->serialize().str();
+        std::cerr << e << "\n";
+        return sendError(e.c_str());
     }
 }
