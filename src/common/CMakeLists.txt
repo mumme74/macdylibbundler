@@ -5,6 +5,8 @@ target_sources(
   common
   PRIVATE
     Common.cpp
+    Types.cpp
   PUBLIC
     Common.h
+    Types.cpp
 )
