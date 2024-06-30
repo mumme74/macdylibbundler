@@ -72,7 +72,7 @@ ArgParser args {
    Settings::set_inside_lib_path, ArgItem::ReqVluString
   },
   {"s","search-path","Directory to add to list of locations searched",Settings::addSearchPath, ArgItem::ReqVluString},
-  {"of","overwite-files","allow overwriting files in output directory",Settings::setCanOverwriteFiles},
+  {"of","overwrite-files","allow overwriting files in output directory",Settings::setCanOverwriteFiles},
   {"od","overwrite-dir","totally overwrite output directory if it already exists. implies --create-dir", Settings::setCanOverwriteDir},
   {"cd","create-dir","creates output directory if necessary",Settings::setCanCreateDir},
   {"ns","no-codesign","disables ad-hoc codesigning",Settings::setCanCodesign, ArgItem::VluFalse},
@@ -106,11 +106,13 @@ int main (int argc, const char * argv[])
         exit(0);
     }
 
-    std::cout << "* Collecting dependencies\n";
     DylibBundler bundler{};
 
-    for(const auto& file : Settings::srcFiles())
+    for(const auto& file : Settings::srcFiles()) {
+        std::cout << "* Collecting dependencies for:"
+                  << file.src <<" \n";
         bundler.collectDependencies(file.src);
+    }
 
     bundler.collectSubDependencies();
     if (!Settings::shouldOnlyRunScripts())
