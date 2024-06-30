@@ -614,7 +614,7 @@ Array::Array(const VluBase* parent) :
   m_vlu.arrVlu = std::make_unique<ArrType>();
 }
 
-Array::Array(const std::initializer_list<VluBase>& args) :
+Array::Array(ArrInitializer args) :
   VluBase(ArrayType, nullptr)
 {
   m_vlu.arrVlu = std::make_unique<ArrType>();
@@ -629,6 +629,13 @@ Array::Array(const std::initializer_list<VluBase>& args) :
 Array::Array(const Array& other) :
   VluBase(other)
 {}
+
+Array::Array(const std::vector<std::string>& stringList):
+  VluBase(ArrayType, nullptr)
+{
+  for (const auto& str : stringList)
+    push(std::make_unique<String>(str));
+}
 
 Array::~Array()
 {}
@@ -649,6 +656,18 @@ Array::operator= (Array&& rhs)
     throw Exception("Can't set to a non empty array");
   VluBase::operator=(std::move(rhs));
   return *this;
+}
+
+int
+Array::indexOf(VluBase search) const
+{
+  int idx = -1;
+  for (const auto& itm : *m_vlu.arrVlu) {
+    ++idx;
+    if (*itm == search)
+      return idx;
+  }
+  return idx;
 }
 
 VluBase*
@@ -687,12 +706,30 @@ Array::push(std::unique_ptr<VluBase> vlu)
   m_vlu.arrVlu->push_back(std::move(vlu));
 }
 
+void
+Array::unshift(std::unique_ptr<VluBase> vlu)
+{
+  if (isChildOf(vlu.get())) throw Exception("Cyclic dependency");
+  vlu->setParent(this);
+  m_vlu.arrVlu->emplace(m_vlu.arrVlu->begin(), std::move(vlu));
+}
+
 VluType
 Array::pop()
 {
   if (m_vlu.arrVlu->empty()) return nullptr;
   auto vlu = std::move(m_vlu.arrVlu->back());
   m_vlu.arrVlu->pop_back();
+  vlu->setParent(nullptr);
+  return vlu;
+}
+
+VluType
+Array::shift()
+{
+  if (m_vlu.arrVlu->empty()) return nullptr;
+  auto vlu = std::move(m_vlu.arrVlu->front());
+  m_vlu.arrVlu->erase(m_vlu.arrVlu->begin());
   vlu->setParent(nullptr);
   return vlu;
 }
@@ -711,8 +748,7 @@ Object::Object(const VluBase* parent) :
   m_vlu.objVlu = std::make_unique<ObjType>();
 }
 
-Object::Object(const std::initializer_list<
-  std::pair<std::string, VluBase>>& args) :
+Object::Object(ObjInitializer args) :
   VluBase(ObjectType, nullptr)
 {
   m_vlu.objVlu = std::make_unique<ObjType>();

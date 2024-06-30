@@ -205,29 +205,38 @@ public:
   std::stringstream serialize(int indent = 0, int depth = 0) const;
 };
 
+using ArrInitializer = const std::initializer_list<VluBase>&;
 class Array : public VluBase {
 public:
   Array(const VluBase* parent = nullptr);
-  Array(const std::initializer_list<VluBase>& args);
+  Array(ArrInitializer args);
   Array(const Array& other);
+  Array(const std::vector<std::string>& stringList);
   ~Array();
   Array& operator= (const Array& other);
   Array& operator= (Array&& rhs);
   VluBase& operator[] (size_t idx) const { return *at(idx); }
+  int indexOf(VluBase search) const;
   VluBase* at(size_t idx) const;
   std::string toString() const;
   std::stringstream serialize(int indent = 0, int depth = 0) const;
   void push(std::unique_ptr<VluBase> vlu);
   void push(const VluBase& vlu) { push(copyCreate(vlu)); }
+  void push(const std::string& str) { push(String(str)); }
+  void unshift(std::unique_ptr<VluBase> vlu);
+  void unshift(const VluBase& vlu) { unshift(copyCreate(vlu)); }
+  void unshift(const std::string& str) { unshift(String(str)); }
   VluType pop();
+  VluType shift();
   size_t length() const;
 };
 
+using ObjInitializer = const std::initializer_list<
+        std::pair<std::string, VluBase>>&;
 class Object : public VluBase {
 public:
   Object(const VluBase* parent = nullptr);
-  Object(const std::initializer_list<
-    std::pair<std::string, VluBase>>& args);
+  Object(ObjInitializer args);
   Object(const Object& other);
   ~Object();
   Object& operator= (const Object& other);
