@@ -253,10 +253,13 @@ void setCreateAppBundle(bool on) {
 }
 
 Path app_bundle_path;
+std::string appBundleName() {
+    return appBundlePath().end_name();
+}
 Path appBundlePath() {
     auto path = app_bundle_path.empty() ?
         Path(files.front()) : app_bundle_path;
-    auto name = path.filename().string();
+    auto name = path.end_name().string();
     if (name.rfind(".app") != name.size() -1) name+=".app";
     path.replace_filename(name);
     return path;
@@ -406,22 +409,28 @@ Path frameworkDir() {
 
 std::unique_ptr<Json::Object> toJson() {
     using namespace Json;
-    auto obj = std::make_unique<Object>(
-      std::initializer_list<std::pair<std::string, VluBase>>{
-        {"canOverWriteFiles", Bool(canOverwriteFiles())},
-        {"canOverWriteDir", Bool(canOverwriteDir())},
-        {"canCreateDir", Bool(canCreateDir())},
-        {"canCodeSign", Bool(canCodesign())},
-        {"bundleLibs", Bool(bundleLibs())},
-        {"bundleFrameworks", Bool(bundleFrameworks())},
-        {"frameworkDir", String(frameworkDir())},
-        {"createAppBundle", Bool(createAppBundle())},
+    Array searchIn;
+    for (const auto& path : searchPaths())
+        searchIn.push(path.string());
+
+    auto obj = std::make_unique<Object>(ObjInitializer{
+        {"can_overwrite_files", Bool(canOverwriteFiles())},
+        {"can_overwrite_dir", Bool(canOverwriteDir())},
+        {"can_create_dir", Bool(canCreateDir())},
+        {"can_codesign", Bool(canCodesign())},
+        {"bundle_libs", Bool(bundleLibs())},
+        {"bundle_frameworks", Bool(bundleFrameworks())},
+        {"framework_dir", String(frameworkDir())},
+        {"create_app_bundle", Bool(createAppBundle())},
         {"verbose", Bool(verbose())},
-        {"libFolder", String(destFolder())},
-        {"prefixTools", String(prefixTools())},
-        {"appBundleContentsDir", String(appBundleContentsDir())},
+        {"lib_folder", String(destFolder())},
+        {"prefix_tools", String(prefixTools())},
+        {"app_bundle_contents_dir", String(appBundleContentsDir())},
         {"inside_lib_path", String(inside_lib_path())},
         {"inside_framework_path", String(inside_framework_path())},
+        {"app_bundle_exec_dir", String(appBundleExecDir())},
+        {"app_bundle_name", String(appBundleName())},
+        {"search_paths", searchIn},
         {"otool_path", String(otoolCmd())},
         {"install_name_tool_path", String(installNameToolCmd())}
       }

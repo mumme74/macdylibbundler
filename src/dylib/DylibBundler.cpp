@@ -53,7 +53,8 @@ DylibBundler::DylibBundler():
     m_deps_per_file{},
     m_collected{},
     m_rpaths_per_file{},
-    m_rpath_to_fullpath{}
+    m_rpath_to_fullpath{},
+    m_currentFile{}
 {
     assert(DylibBundler::s_instance == nullptr &&
          "Should only have one instance");
@@ -318,6 +319,7 @@ DylibBundler::collectDep(
 void
 DylibBundler::collectDependencies(PathRef file)
 {
+    m_currentFile = file;
     if (m_collected.find(file.string()) != m_collected.end())
         return;
 
@@ -395,9 +397,34 @@ DylibBundler::hasFrameworkDep() {
     });
 }
 
-// -----------------------------------------------------------------------
+Json::VluType
+DylibBundler::toJson(std::string_view srcFile) const
+{
+    using namespace Json;
+    Array srcFiles;
 
-void createDestDir()
+    Object src_files{};
+    // find out which src files
+    for (const auto& pair : m_deps_per_file) {
+        srcFiles.push(String(pair.first));
+        if (srcFile == pair.first || srcFile.empty()) {
+            Array value;
+            for (const auto& dep : pair.second)
+                value.push(dep.toJson());
+            src_files.set(pair.first, value);
+        }
+    }
+
+    auto root = std::make_unique<Object>(ObjInitializer{
+        {"files_to_fix", std::move(srcFiles)},
+        {"src_files", src_files}
+    });
+
+    return root;
+}
+
+void
+DylibBundler::createDestDir() const
 {
     std::error_code err;
     std::stringstream ss;
@@ -456,6 +483,8 @@ DylibBundler::doneWithDeps_go()
                       << files.src << std::endl;
     }
 }
+
+// -----------------------------------------------------------------------
 
 void mkAppBundleTemplate() {
     // see https://eclecticlight.co/2021/12/13/whats-in-that-app-a-guide-to-app-internal-structure/

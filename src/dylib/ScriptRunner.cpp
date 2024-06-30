@@ -37,6 +37,7 @@ THE SOFTWARE.
 #include "Utils.h"
 #include "ScriptRunner.h"
 #include "Settings.h"
+#include "DylibBundler.h"
 
 std::string handleSubProcessReq(const std::string& request);
 Json::VluType handleJsonReq(Json::VluType jsn);
@@ -115,8 +116,8 @@ bool scriptLogic(
     makeDup(pipes.scriptIn(), STDIN_FILENO);
     makeDup(pipes.scriptOut(), STDOUT_FILENO);
 
-    fprintf(pipes.stdout, "Before execve\n");
-    int res = execvp(script.data(), argv);
+    fprintf(pipes.stdout, "Before execvpe\n");
+    int res = execvpe(script.data(), argv, environ);
     // If we get here command failed.
     // Should be replaced by script process.
     fprintf(pipes.stdout,
@@ -153,7 +154,7 @@ bool parentWrite(FILE *out, std::string_view str) {
                 str.size(), out) != str.size())
     ) {
         std::cerr << "Failed to write n:"<<str.size()
-                    << " to script\n" << str << "\n";
+                  << " to script\n" << str << "\n";
         return false;
     }
     fflush(out);
@@ -303,7 +304,9 @@ void runPythonScripts_afterHook() {
 
 struct ProtocolItem {
     const char *name, *description;
-    typedef std::function<void(const char*, Json::Object*)> cbType;
+    typedef std::function<void(
+        const char* cmd, Json::Object* retObj, Json::VluBase* args)
+    > cbType;
     cbType cb;
     ProtocolItem(const char* name, const char* description, cbType cb):
         name{name}, description{description}, cb{cb}
@@ -318,74 +321,109 @@ const ProtocolItem protocol[] {
     {
         "get_protocol",
         "Gets info on all protocol commands a script can use",
-        [](const char *cmd, Json::Object* obj){
+        [](const char *cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
             obj->set(cmd, listProtocol());
         }
     },
     {
         "all_settings",
         "Gets all settings in a complete bundle",
-        [](const char* cmd, Json::Object* obj){ (void)cmd;
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
             obj->set(cmd, Settings::toJson());
         }
     },
     {
-        "appBundlePath",
+        "app_bundle_path",
         "Get the path to the app bundle.",
-        [](const char* cmd, Json::Object* obj){
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
             auto setting = Settings::appBundlePath().string();
             obj->set(cmd, std::make_unique<Json::String>(setting));
         }
     },
     {
-        "frameworkDir",
+        "framework_dir",
         "Get path to framework dir inside app bundle",
-        [](const char* cmd, Json::Object* obj){
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
             auto setting = Settings::frameworkDir();
             obj->set(cmd, std::make_unique<Json::String>(setting));
         }
     },
     {
-        "destFolder",
+        "dest_folder",
         "Get path to the destination folder",
-        [](const char* cmd, Json::Object* obj){
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
             auto setting = Settings::destFolder();
             obj->set(cmd, std::make_unique<Json::String>(setting));
         }
     },
     {
-        "canOverwriteDir",
+        "can_overwrite_dir",
         "Is true if we are allowed to overwrite dir",
-        [](const char* cmd, Json::Object* obj){
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
             auto setting = Settings::canOverwriteDir();
             obj->set(cmd, std::make_unique<Json::Bool>(setting));
         }
     },
     {
-        "canOverwriteFiles",
+        "can_overwrite_files",
         "Is true if we are allowed to overwrite files",
-        [](const char* cmd, Json::Object* obj){
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
             auto setting = Settings::canOverwriteFiles();
             obj->set(cmd, std::make_unique<Json::Bool>(setting));
         }
     },
     {
-        "canCodeSign",
+        "can_code_sign",
         "Is true if we can codeSign the bundle",
-        [](const char* cmd, Json::Object* obj){
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
             auto setting = Settings::canCodesign();
             obj->set(cmd, std::make_unique<Json::Bool>(setting));
         }
     },
     {
-        "prefixTools",
+        "prefix_tools",
         "Prefix tools ie. libtool example: if set to aarch-macho- "
         "becomes aarch-macho-libtool",
-        [](const char* cmd, Json::Object* obj){
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
             auto setting = Settings::prefixTools();
             obj->set(cmd, std::make_unique<Json::String>(setting));
         }
     },
+    {
+        "dylib_info",
+        "Get information of all dependencies collected",
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
+            obj->set(cmd, DylibBundler::instance()->toJson());
+        }
+    },
+    {
+        "install_name_tool_cmd",
+        "Get install_name_tool name, might be named differently",
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
+            obj->set(cmd, std::make_unique<Json::String>(
+                Settings::installNameToolCmd()));
+        }
+    },
+    {
+        "otool_cmd",
+        "Get otool name, might be named differently",
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
+            obj->set(cmd, std::make_unique<Json::String>(
+                Settings::otoolCmd()));
+        }
+    }
 };
 
 Json::VluType listProtocol() {
@@ -397,10 +435,12 @@ Json::VluType listProtocol() {
     return obj;
 }
 
-void handleCmd(const Json::Array* params, Json::Object* retObj)
+void handleCmd(Json::Array* params, Json::Object* retObj)
 {
     // cmd is always the first item in array
-    auto cmd = params->at(0);
+    if (params->length() < 1)
+        throw Json::Exception{"No command given"};
+    auto cmd = params->shift();
     if (!cmd->isString()) {
         std::stringstream ss;
         ss  << "Expected a string cmd from script, "
@@ -413,7 +453,7 @@ void handleCmd(const Json::Array* params, Json::Object* retObj)
     for (std::size_t i = 0; i < sizeof(protocol)/sizeof(protocol[0]); ++i) {
         const auto& prot = protocol[i];
         if (prot.name == cmdStr) {
-            prot.cb(cmdStr.c_str(), retObj);
+            prot.cb(cmdStr.c_str(), retObj, params);
             return;
         }
     }

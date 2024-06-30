@@ -44,18 +44,22 @@ public:
       PathRef rpath_file, PathRef dependent_file);
     bool hasFrameworkDep();
 
+    Json::VluType toJson(std::string_view srcFile = "") const;
+
 private:
     void changeLibPathsOnFile(PathRef file) const;
     void collectRpaths(PathRef file);
     void fixRPathsOnFile(PathRef original_file, PathRef file_to_fix);
     void addDependency(PathRef path, PathRef filename);
     void collectDep(PathRef file, std::vector<std::string> &lines);
+    void createDestDir() const;
 
     std::vector<Dependency> m_deps;
     std::map<std::string, std::vector<Dependency> > m_deps_per_file;
     std::map<std::string, bool> m_collected;
     std::map<std::string, Path> m_rpaths_per_file;
     std::map<std::string, Path> m_rpath_to_fullpath;
+    Path m_currentFile;
     static DylibBundler *s_instance;
 };
 

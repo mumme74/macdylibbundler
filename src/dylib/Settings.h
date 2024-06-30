@@ -109,6 +109,8 @@ Path appBundleContentsDir();
 /// Get the path to exec directory in bundle
 ///  example: name.app/Contents/MacOS
 Path appBundleExecDir();
+/// The name to app bundle
+std::string appBundleName();
 /// Dir to app common scripts
 PathRef scriptDir();
 /// Path to Info.plist file

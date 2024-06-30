@@ -326,13 +326,15 @@ Dependency::toJson() const
     for (const auto& link : m_symlinks)
         links.push(String(link));
 
-    auto obj = std::make_unique<Object>(
-      std::initializer_list<std::pair<std::string, VluBase>>{
-        {"original_file", String(m_original_file)},
-        {"canonical_file", String(m_canonical_file)},
-        {"prefix", String(m_prefix)},
+    auto obj = std::make_unique<Object>(ObjInitializer{
+        {"original_file", String{m_original_file}},
+        {"canonical_file", String{m_canonical_file}},
+        {"install_path", String{getInstallPath()}},
+        {"inner_path", String{getInnerPath()}},
+        {"prefix", String{m_prefix}},
         {"symlinks", links},
-        {"isFramework", Bool(m_framework)}
+        {"is_framework", Bool(m_framework)},
+        {"framework_name", String{getFrameworkName()}}
       }
     );
     return obj;
