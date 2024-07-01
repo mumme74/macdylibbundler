@@ -30,51 +30,11 @@ THE SOFTWARE.
 namespace Json {
 
 
-TEST(UndefinedTest, asOther) {
-  VluBase v(VluBase::UndefinedType, nullptr);
-  EXPECT_NO_THROW(v.asUndefined());
-  EXPECT_ANY_THROW(v.asNull());
-  EXPECT_ANY_THROW(v.asBool());
-  EXPECT_ANY_THROW(v.asNumber());
-  EXPECT_ANY_THROW(v.asString());
-  EXPECT_ANY_THROW(v.asArray());
-  EXPECT_ANY_THROW(v.asObject());
-};
-TEST(UndefinedTest, ConstructNoArgs) {
-  Undefined n;
-  EXPECT_NE(dynamic_cast<Json::VluBase*>(&n), nullptr);
-};
-TEST(UndefinedTest, CopyConstructor) {
-  Undefined u;
-  Undefined u2(u);
-  EXPECT_NE(dynamic_cast<Json::VluBase*>(&u2), nullptr);
-  EXPECT_EQ(u2.type(), VluBase::UndefinedType);
-};
-TEST(UndefinedTest, toString) {
-  EXPECT_STREQ(Undefined().toString().c_str(), "undefined");
-};
-TEST(UndefinedTest, serialize) {
-  EXPECT_STREQ(Undefined().serialize(2,1).str().c_str(), "\n  undefined");
-};
-TEST(UndefinedTest, isUndefined) {
-  EXPECT_EQ(Undefined().isUndefined(), true);
-  EXPECT_EQ(Undefined().isNull(), false);
-  EXPECT_EQ(Undefined().isBool(), false);
-  EXPECT_EQ(Undefined().isNumber(), false);
-  EXPECT_EQ(Undefined().isString(), false);
-  EXPECT_EQ(Undefined().isArray(), false);
-  EXPECT_EQ(Undefined().isObject(), false);
-};
-TEST(UndefinedTest, operatorEq) {
-  Undefined u1, u2;
-  EXPECT_EQ(u1 == u2, false);
-};
 
 // ------------------------------------------------------------
 
 TEST(NullTest, asOther) {
   VluBase v(VluBase::NullType, nullptr);
-  EXPECT_ANY_THROW(v.asUndefined());
   EXPECT_NO_THROW(v.asNull());
   EXPECT_ANY_THROW(v.asBool());
   EXPECT_ANY_THROW(v.asNumber());
@@ -100,7 +60,6 @@ TEST(NullTest, serialize) {
 };
 TEST(NullTest, isNull) {
   Null v;
-  EXPECT_EQ(v.isUndefined(), false);
   EXPECT_EQ(v.isNull(), true);
   EXPECT_EQ(v.isBool(), false);
   EXPECT_EQ(v.isNumber(), false);
@@ -116,7 +75,6 @@ TEST(NullTest, operatorEq) {
 // ------------------------------------------------------------
 TEST(BoolTest, asOther) {
   VluBase v(VluBase::BoolType, nullptr);
-  EXPECT_ANY_THROW(v.asUndefined());
   EXPECT_ANY_THROW(v.asNull());
   EXPECT_NO_THROW(v.asBool());
   EXPECT_ANY_THROW(v.asNumber());
@@ -144,7 +102,6 @@ TEST(BoolTest, serialize) {
 };
 TEST(BoolTest, isBool) {
   Bool v(true);
-  EXPECT_EQ(v.isUndefined(), false);
   EXPECT_EQ(v.isNull(), false);
   EXPECT_EQ(v.isBool(), true);
   EXPECT_EQ(v.isNumber(), false);
@@ -166,7 +123,6 @@ TEST(BoolTest, vlu) {
 // ------------------------------------------------------------
 TEST(NumberTest, NumberAsOther) {
   VluBase v(VluBase::NumberType, nullptr);
-  EXPECT_ANY_THROW(v.asUndefined());
   EXPECT_ANY_THROW(v.asNull());
   EXPECT_ANY_THROW(v.asBool());
   EXPECT_NO_THROW(v.asNumber());
@@ -196,7 +152,6 @@ TEST(NumberTest, serialize) {
 };
 TEST(NumberTest, isNumber) {
   Number v(1);
-  EXPECT_EQ(v.isUndefined(), false);
   EXPECT_EQ(v.isNull(), false);
   EXPECT_EQ(v.isBool(), false);
   EXPECT_EQ(v.isNumber(), true);
@@ -219,7 +174,6 @@ TEST(NumberTest, vlu) {
 
 TEST(StringTest, asOther) {
   VluBase v(VluBase::StringType, nullptr);
-  EXPECT_ANY_THROW(v.asUndefined());
   EXPECT_ANY_THROW(v.asNull());
   EXPECT_ANY_THROW(v.asBool());
   EXPECT_ANY_THROW(v.asNumber());
@@ -248,7 +202,6 @@ TEST(StringTest, serialize) {
 };
 TEST(StringTest, isString) {
   String v("one");
-  EXPECT_EQ(v.isUndefined(), false);
   EXPECT_EQ(v.isNull(), false);
   EXPECT_EQ(v.isBool(), false);
   EXPECT_EQ(v.isNumber(), false);
@@ -271,7 +224,6 @@ TEST(StringTest, vlu) {
 
 TEST(ArrayTest, asOther) {
   VluBase v(VluBase::ArrayType, nullptr);
-  EXPECT_ANY_THROW(v.asUndefined());
   EXPECT_ANY_THROW(v.asNull());
   EXPECT_ANY_THROW(v.asBool());
   EXPECT_ANY_THROW(v.asNumber());
@@ -315,7 +267,6 @@ TEST(ArrayTest, serialize) {
 };
 TEST(ArrayTest, isArray) {
   Array v;
-  EXPECT_EQ(v.isUndefined(), false);
   EXPECT_EQ(v.isNull(), false);
   EXPECT_EQ(v.isBool(), false);
   EXPECT_EQ(v.isNumber(), false);
@@ -389,7 +340,7 @@ TEST(ArrayTest, operatorSet) {
   EXPECT_EQ(a2[0].asBool()->vlu(), true);
   EXPECT_EQ(a2[1].asNumber()->vlu(), 234);
 
-  Array a3{Undefined()};
+  Array a3{String("")};
   EXPECT_ANY_THROW(a3=a1);
 };
 
@@ -397,7 +348,6 @@ TEST(ArrayTest, operatorSet) {
 
 TEST(ObjectTest, asOther) {
   VluBase v(VluBase::ObjectType, nullptr);
-  EXPECT_ANY_THROW(v.asUndefined());
   EXPECT_ANY_THROW(v.asNull());
   EXPECT_ANY_THROW(v.asBool());
   EXPECT_ANY_THROW(v.asNumber());
@@ -443,7 +393,6 @@ TEST(ObjectTest, serialize) {
 };
 TEST(ObjectTest, isObject) {
   Object v;
-  EXPECT_EQ(v.isUndefined(), false);
   EXPECT_EQ(v.isNull(), false);
   EXPECT_EQ(v.isBool(), false);
   EXPECT_EQ(v.isNumber(), false);
@@ -539,7 +488,7 @@ TEST(ObjectTest, operatorSet) {
   EXPECT_EQ(o2["b"].asBool()->vlu(), true);
   EXPECT_EQ(o2["num"].asNumber()->vlu(), 234);
 
-  Object o3{{"u", Undefined()}};
+  Object o3{{"u", Null()}};
   EXPECT_ANY_THROW(o3=o1);
 };
 TEST(ObjectTest, keys) {

@@ -47,7 +47,6 @@ null.
 namespace Json {
 
 class VluBase;
-class Undefined;
 class Null;
 class Bool;
 class Number;
@@ -77,7 +76,7 @@ class VluBase {
 public:
   enum Type {
     // scalar types
-    UndefinedType, NullType, BoolType, NumberType,
+    NullType, BoolType, NumberType,
     // complex types, data on heap for these
     StringType, ArrayType, ObjectType
   };
@@ -97,7 +96,6 @@ public:
   const VluBase* parent() const { return m_parent; }
   void setParent(const VluBase* parent) { m_parent = parent; }
 
-  bool isUndefined() const { return m_type == UndefinedType; }
   bool isNull() const { return m_type == NullType; }
   bool isBool() const { return m_type == BoolType; }
   bool isNumber() const { return m_type == NumberType; }
@@ -108,7 +106,6 @@ public:
   std::string_view typeName() const;
 
   VluBase*   asBase() const;
-  Undefined* asUndefined() const;
   Null*      asNull() const;
   Bool*      asBool() const;
   Number*    asNumber() const;
@@ -145,15 +142,6 @@ protected:
   void shallowMove(VluBase* to, VluBase&& rhs) const;
   VluType copyCreate(const VluBase& vlu) const;
   bool isChildOf(const VluBase* other) const;
-};
-
-class Undefined : public VluBase {
-public:
-  Undefined(const VluBase* parent = nullptr);
-  Undefined(const Undefined& other);
-  ~Undefined();
-  std::string toString() const;
-  std::stringstream serialize(int indent = 0, int depth = 0) const;
 };
 
 class Null : public VluBase {

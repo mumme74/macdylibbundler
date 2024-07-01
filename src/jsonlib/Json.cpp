@@ -182,8 +182,6 @@ VluType
 VluBase::copyCreate(const VluBase& vlu) const
 {
   switch (vlu.type()) {
-  case UndefinedType:
-    return std::make_unique<Undefined>(vlu.m_parent);
   case NullType:
     return std::make_unique<Null>(vlu.m_parent);
   case BoolType:
@@ -276,7 +274,6 @@ VluBase::operator== (const VluBase &other) const
   if (m_type != other.m_type)
     return false;
   switch (m_type) {
-  case UndefinedType: return false;
   case NullType: return true;
   case BoolType: return m_vlu.boolVlu == other.m_vlu.boolVlu;
   case NumberType: return m_vlu.numVlu == other.m_vlu.numVlu;
@@ -309,7 +306,6 @@ std::string
 VluBase::toString() const
 {
   switch (m_type) {
-  case UndefinedType: return asUndefined()->toString();
   case NullType: return asNull()->toString();
   case BoolType: return asBool()->toString();
   case NumberType: return asNumber()->toString();
@@ -325,7 +321,6 @@ std::stringstream
 VluBase::serialize(int indent, int depth) const
 {
   switch (m_type) {
-  case UndefinedType: throw Exception("Can't serialize as a value is undefined");
   case NullType: return asNull()->serialize(indent, depth);
   case BoolType: return asBool()->serialize(indent, depth);
   case NumberType: return asNumber()->serialize(indent, depth);
@@ -341,7 +336,6 @@ std::string_view
 VluBase::typeName() const
 {
   switch (m_type) {
-  case UndefinedType: return "undefined";
   case NullType:      return "null";
   case BoolType:      return "boolean";
   case NumberType:    return "number";
@@ -357,13 +351,6 @@ VluBase*
 VluBase::asBase() const
 {
   return static_cast<VluBase*>(const_cast<VluBase*>(this));
-}
-
-Undefined*
-VluBase::asUndefined() const
-{
-  if (m_type != UndefinedType) throw Exception("Can't convert to Undefined");
-  return dynamic_cast<Undefined*>(const_cast<VluBase*>(this));
 }
 
 Null*
@@ -406,30 +393,6 @@ VluBase::asObject() const
 {
   if (m_type != ObjectType) throw Exception("Can't convert to Object");
   return dynamic_cast<Json::Object*>(const_cast<VluBase*>(this));
-}
-
-// -----------------------------------------------------------------------
-
-Undefined::Undefined(const VluBase* parent) :
-  VluBase(UndefinedType, parent)
-{}
-
-Undefined::Undefined(const Undefined& other) :
-  VluBase(UndefinedType, other.m_parent)
-{}
-
-Undefined::~Undefined() {}
-
-std::string
-Undefined::toString() const
-{
-  return std::string("undefined");
-}
-
-std::stringstream
-Undefined::serialize(int indent, int depth) const
-{
-  return serializeScalar(indent, depth, toString());
 }
 
 // -----------------------------------------------------------------------
@@ -934,7 +897,7 @@ Parser::parse(std::string_view src)
       throw exceptionAt(msg);
     }
   }
-  return std::make_unique<Undefined>();
+  return nullptr;
 }
 
 void

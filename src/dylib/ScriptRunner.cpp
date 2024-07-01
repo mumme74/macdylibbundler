@@ -503,7 +503,7 @@ std::string handleSubProcessReq(const std::string& request)
 
     try {
         auto jsn = Json::parse(request);
-        if (!jsn || jsn->isUndefined())
+        if (!jsn || jsn->isNull())
             throw "Not a json Request";
         return handleJsonReq(std::move(jsn))->serialize().str();
     } catch (Json::Exception& e) {
