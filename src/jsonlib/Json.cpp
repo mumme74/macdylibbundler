@@ -47,6 +47,7 @@ stringify(const std::string& in) {
       }
 
       switch (*cur) {
+      case '/': out << "\\/"; break;
       case '\\':
           esc = true;
           out << "\\"; break;
@@ -96,6 +97,71 @@ utf8_strnlen(std::string_view str) {
     else if ((ch & 0xC0) == 0xC0) { len += 1; i += 1; }
   }
   return len;
+}
+
+/// parses a code point into dst string, returns how many bytes read from input
+int
+utf8_codePntToStr(std::string& dest, std::string_view in) {
+  int b[4] = {0};
+
+  // read all char in code point ie: 1F4D5
+  for (int i = 0, k = 0; i < 4; i += 2, ++k) {
+    char nib[2] = {in[i], in[i+1]};
+    for (int j = 0, l = 1; j < 2; ++j, --l) {
+      if (nib[j] >= '0' && nib[j] <= '9')
+        b[k] |= (nib[j] - '0') << (4 * l);
+      else if (nib[j] >= 'a' && nib[j] <= 'f')
+        b[k] |= (nib[j] - 'a' + 10) << (4 * l);
+      else if (nib[j] >= 'A' && nib[j] <= 'F')
+        b[k] |= (nib[j] - 'A' + 10) << (4 * l);
+      else
+        return -1;
+    }
+  }
+
+  int nBytes = 1, bytes = (b[0] << 8) | b[1];
+  if (bytes >= 0x010000) ++nBytes;
+  if (bytes >= 0x800) ++nBytes;
+  if (bytes >= 0x80) ++nBytes;
+
+  /*
+    Code point ↔ UTF-8 conversion
+    min	c.p. max c.p.	Byte 1    Byte 2    Byte 3    Byte 4
+    U+0000	 U+007F	  0xxxxxxx
+    U+0080	 U+07FF	  110xxxxx	10xxxxxx
+    U+0800	 U+FFFF	  1110xxxx	10xxxxxx	10xxxxxx
+    U+010000 U+10FFFF	11110xxx	10xxxxxx	10xxxxxx	10xxxxxx // not supported?
+  */
+
+  if (nBytes == 1) {
+    dest += b[1]; // one byte seq. ie \u00xx
+    return 4; // as in consumed 4 chars
+  } else {
+    if (nBytes == 2) {
+      char b0 = 0xC0
+              | ((b[0] & 0x07) << 2)
+              | ((b[1] & 0xC0) >> 6);
+      char b1 = 0x80
+              | ((b[1] & 0x30) << 0)
+              | ((b[1] & 0x0F) << 0);
+      dest += b0; dest += b1;
+      return 4; // as in consumed 4 chars
+    } else if (nBytes == 3) {
+      char b0 = 0xE0
+              | ((b[0] & 0xF0) >> 4);
+      char b1 = 0x80
+              | ((b[0] & 0x0F) << 2)
+              | ((b[1] & 0xC0) >> 6);
+      char b2 = 0x80
+              | ((b[1] & 0x30) << 0)
+              | ((b[1] & 0x0F) << 0);
+      dest += b0; dest += b1; dest += b2;
+      return 4; // as in consumed 4 chars
+    }
+    // else: unsupported 4 bytes code point
+  }
+
+ return -1;
 }
 
 // --------------------------------------------------------------
@@ -1008,6 +1074,7 @@ Parser::parseString() {
     } break;
     case '\\':
       while (ch && (ch = get()) != -1) {
+        // https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf
         switch (ch) {
         case '"': buf += '"'; ch = 0; break;
         case '\\': buf += '\\'; ch = 0; break;
@@ -1018,11 +1085,16 @@ Parser::parseString() {
         case 'r': buf += '\r'; ch = 0; break;
         case 't': buf += '\t'; ch = 0; break;
         case 'u': {
-          // specialcase utf 8  2 bytes
-          std::string hex{"0x"};
-          buf += std::stoi(hex+m_src.substr(m_pos-1, 2));
-          buf += std::stoi(hex+m_src.substr(m_pos+1, 2));
-          m_pos += 3;
+          // utf 8 code points
+          std::string_view str{m_src};
+          auto codePoint = str.substr(m_pos, 6);
+          auto consumed = utf8_codePntToStr(buf, codePoint);
+          if (consumed < 0) {
+            std::stringstream msg;
+            msg << "Invalid utf8 code point";
+            throw exceptionAt(msg);
+          }
+          m_pos += consumed;
           ch = 0;
         } break;
         default:
@@ -1135,7 +1207,6 @@ Parser::exceptionAt(std::stringstream& msg)
   auto strEnd = m_src.substr(m_pos, endPos - m_pos);
   auto strStart = m_src.substr(fromPos, m_pos - fromPos);
   auto lenToPos = utf8_strnlen(strStart) +1;
-  auto len = strStart.size();
 
   // make assume a tab is 4 spaces
   p = 0;

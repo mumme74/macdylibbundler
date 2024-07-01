@@ -219,6 +219,20 @@ TEST(StringTest, vlu) {
   EXPECT_EQ(String("one").vlu(), std::string("one"));
   EXPECT_EQ(String("two").vlu(), std::string("two"));
 };
+TEST(StringTest, serializeEscape) {
+  EXPECT_EQ(String("\"").serialize().str(), "\"\\\"\"");
+  EXPECT_EQ(String("\\").serialize().str(), "\"\\\"");
+  EXPECT_EQ(String("/").serialize().str(), "\"\\/\"");
+  EXPECT_EQ(String("\b").serialize().str(), "\"\\b\"");
+  EXPECT_EQ(String("\f").serialize().str(), "\"\\f\"");
+  EXPECT_EQ(String("\n").serialize().str(), "\"\\n\"");
+  EXPECT_EQ(String("\r").serialize().str(), "\"\\r\"");
+  EXPECT_EQ(String("\t").serialize().str(), "\"\\t\"");
+  //EXPECT_EQ(String("$").serialize().str(), "\"\\u0024\"");
+  //EXPECT_EQ(String("£").serialize().str(), "\"\\u20AC\"");
+  //EXPECT_EQ(String("И").serialize().str(), "\"\\u0418\"");
+  //EXPECT_EQ(String("한").serialize().str(), "\"\\uD55C\"");
+}
 
 // --------------------------------------------------------------
 
@@ -655,5 +669,29 @@ TEST(ParseTest, invalid) {
   EXPECT_ANY_THROW(parse("{\"o:345}"));
   EXPECT_ANY_THROW(parse("[null. 123]"));
   EXPECT_ANY_THROW(parse("{\"o\":546 \"p\":\"str\"}"));
+}
+TEST(ParseTest, utf8Strings) {
+  EXPECT_EQ(
+    parse("[\"\\u000a\"]")->asArray()->at(0)->asString()->vlu(), "\n");
+  const char fff[4]={(char)0xEF,(char)0xBF,(char)0xBF,0};
+  EXPECT_EQ(
+    parse("[\"\\uFFFF\"]")->asArray()->at(0)->asString()->vlu(), fff);
+  const char ff[3]={(char)0xDF,(char)0xBF,0};
+  EXPECT_EQ(
+    parse("[\"\\u07FF\"]")->asArray()->at(0)->asString()->vlu(), ff);
+
+  EXPECT_EQ(
+    parse("[\"\\u20AC\"]")->asArray()->at(0)->asString()->vlu(), "€");
+  EXPECT_EQ(
+    parse("[\"\\u0024\"]")->asArray()->at(0)->asString()->vlu(), "$");
+  EXPECT_EQ(
+    parse("[\"\\u0418\"]")->asArray()->at(0)->asString()->vlu(), "И");
+  EXPECT_EQ(
+    parse("[\"\\ud55c\"]")->asArray()->at(0)->asString()->vlu(), "한");
+}
+TEST(ParseTest, utf8StringsThrows) {
+  EXPECT_ANY_THROW(parse("[\"\\u0AC\"]"));
+  EXPECT_ANY_THROW(parse("[\"\\uC\"]"));
+  EXPECT_ANY_THROW(parse("[\"\\uaC\"]"));
 }
 } // namespace Json

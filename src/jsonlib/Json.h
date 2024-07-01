@@ -269,7 +269,6 @@ public:
   Parser();
   VluType parse(std::string_view src);
 
-
 private:
   void eatWhitespace();
   void expect(const char* needle);
@@ -278,8 +277,9 @@ private:
   VluType parseNumber();
   VluType parseString();
   VluType parseValue();
-
+  // create an exception at current pos when parsing
   ParseException exceptionAt(std::stringstream& msg);
+
 
   bool eof() const { return m_pos >= m_src.size(); }
   size_t tell() const {return m_pos; }
