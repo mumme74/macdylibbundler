@@ -60,10 +60,18 @@ typedef std::unique_ptr<std::string> StrType;
 typedef std::vector<VluType> ArrType;
 typedef std::map<const std::string, Json::VluType> ObjType;
 
+class Parser;
+
 class Exception : public std::runtime_error {
 public:
-  Exception(const char* what);
+  Exception(std::string what);
 };
+
+class ParseException : public Exception {
+public:
+  ParseException(std::string what);
+};
+
 
 class VluBase {
 public:
@@ -268,8 +276,39 @@ public:
   size_t length() const { return m_vlu.objVlu->size(); }
 };
 
-VluType parse(const std::string& jsnStr);
-VluType parse(std::stringstream& jsn);
+class Parser {
+public:
+  Parser();
+  VluType parse(std::string_view src);
+
+
+private:
+  void eatWhitespace();
+  void expect(const char* needle);
+  VluType parseObject();
+  VluType parseArray();
+  VluType parseNumber();
+  VluType parseString();
+  VluType parseValue();
+
+  ParseException exceptionAt(std::stringstream& msg);
+
+  bool eof() const { return m_pos >= m_src.size(); }
+  size_t tell() const {return m_pos; }
+  int peek(int fromCur = 0) const {
+    return m_pos + fromCur < m_src.size() ? m_src[m_pos + fromCur] : -1;
+  }
+  int get() { return m_pos < m_src.size() ? m_src[m_pos++] : -1;}
+  void unget() { m_pos > 0 && --m_pos ; }
+  void seek(size_t newPos) {
+    m_pos = newPos < m_src.size() ? newPos : m_src.size();
+  }
+
+  std::string m_src;
+  size_t m_pos;
+};
+
+VluType parse(std::string_view jsnStr);
 
 }; // namespace Json
 

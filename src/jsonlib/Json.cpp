@@ -26,6 +26,9 @@ THE SOFTWARE.
 // except libc++
 #include <assert.h>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <cmath>
 #include "Json.h"
 
 using namespace Json;
@@ -81,10 +84,28 @@ serializeScalar(int indent, int depth, const std::string& toStr)
   return out;
 }
 
+/// returns the utf8 length of this string
+std::size_t
+utf8_strnlen(std::string_view str) {
+  std::size_t len = 0;
+  int ch = str[0];
+  for (std::size_t i = 0; ch != '\0' && i < str.size(); ++i, ++len) {
+    auto ch = str[i];
+    if ((ch & 0xF0) == 0xF0) { len += 3; i += 3; }
+    else if ((ch & 0xD0) == 0xD0) { len += 2; i += 2; }
+    else if ((ch & 0xC0) == 0xC0) { len += 1; i += 1; }
+  }
+  return len;
+}
+
 // --------------------------------------------------------------
 
-Exception::Exception(const char* what) :
+Exception::Exception(std::string what) :
   std::runtime_error(what)
+{}
+
+ParseException::ParseException(std::string what):
+  Exception(what)
 {}
 
 // ---------------------------------------------------------------
@@ -837,7 +858,7 @@ Object::get(const char *key) const
     return iter->second.get();
   std::stringstream msg;
   msg << "Key " << key << " not found in object!";
-  throw Exception(msg.str().c_str());
+  throw Exception(msg.str());
 }
 
 bool
@@ -858,7 +879,7 @@ Object::remove(const char* key)
   }
   std::stringstream msg;
   msg << "Key " << key << " not found in object!";
-  throw Exception(msg.str().c_str());
+  throw Exception(msg.str());
 }
 
 std::vector<std::string>
@@ -887,157 +908,289 @@ Object::values() const
 }
 
 // --------------------------------------------------------------------
-VluType parseArray(std::stringstream& jsn);
-VluType parseObject(std::stringstream& jsn);
 
-void eatWhitespace(std::stringstream& jsn) {
-  while (!jsn.eof() && isspace(jsn.peek())) {
-    jsn.get();
-    continue;
+
+Parser::Parser() :
+  m_src{}, m_pos{0}
+{}
+
+VluType
+Parser::parse(std::string_view src)
+{
+  m_src = src.data();
+  m_pos = 0;
+  int ch;
+
+  eatWhitespace();
+  while ((ch = peek()) != -1) {
+    switch (ch) {
+    case '{':
+      return parseObject();
+    case '[':
+      return parseArray();
+    default:
+      std::stringstream msg;
+      msg << "Invalid in root " << (char)ch;
+      throw exceptionAt(msg);
+    }
   }
+  return std::make_unique<Undefined>();
 }
 
-void expect(const char *needle, std::stringstream& jsn) {
-  eatWhitespace(jsn);
-  while (!jsn.eof() && *needle != '\0') {
-    int ch = jsn.get();
-    if (ch != *needle) {
-      jsn.unget();
-      std::stringstream msg;
-      msg << "Expected '" << needle << "' near: "
-          << jsn.str().substr(jsn.tellg(), 20);
-      throw Exception(msg.str().c_str());
-    }
-    needle++;
-  }
-  eatWhitespace(jsn);
+void
+Parser::eatWhitespace() {
+  while (!eof() && isspace(peek()))
+    get();
 }
 
-VluType parseNumber(std::stringstream& jsn) {
-  std::string buf;
-  int prev = 0;
-  while (!jsn.eof()) {
-    int ch = jsn.get();
-    if ((ch == '+' || ch == '-') && prev == 0) prev = ch; // ignore throw
-    else if ((ch == '+' || ch == '-') && (prev == 'e' || prev == 'E'))
-      prev = ch; // ignore throw
-    else if (ch == ',' || ch == ']' || ch == '}' || isspace(ch)) {
-      jsn.unget();
-      break; // done with
-    }
-    else if ((ch < '0' || ch > '9') && ch != 'e' &&
-         ch != 'E' && ch != '-' && ch != '.')
-    {
+void
+Parser::expect(const char *needle) {
+  eatWhitespace();
+  const char* needlePtr = needle;
+  int ch;
+  while ((ch = peek(needlePtr - needle)) != -1 &&
+          *needlePtr != '\0'
+  ) {
+    if (ch != *needlePtr) {
       std::stringstream msg;
-      msg <<"Invalid ch:" << (char)ch << " in number.";
-      throw Exception(msg.str().c_str());
+      msg << "Expected '" << needle;
+      throw exceptionAt(msg);
     }
-    buf += ch;
+    needlePtr++;
+  }
+  m_pos += needlePtr - needle;
+  eatWhitespace();
+}
+
+VluType
+Parser::parseNumber() {
+  std::string baseBuf, exponBuf;
+  int prev = 0, ch;
+  bool hasDot = false;
+
+  auto endOfNumber = [&](int ch) {
+    return ch == ',' || ch == ']' || ch == '}';
+  };
+  auto finish = [&]()->VluType {
+    float num = std::stof(baseBuf);
+    if (exponBuf.size()) {
+      int exp = std::stoi(exponBuf);
+      num *= std::pow(10, exp);
+    }
+    return std::make_unique<Number>(num);
+  };
+
+  // parse base
+  while ((ch = get()) != -1) {
+    if (ch <= '9' && ch > '0')
+      baseBuf += ch;
+    else if (ch == '0' && (prev != 0 || peek() == '.'))
+      baseBuf += ch;
+    else if (ch == '.' && !hasDot) {
+      baseBuf += ch;
+      hasDot = true;
+    } else if (ch == '-' && prev == 0)
+      baseBuf = ch;
+    else if (ch == 'e' || ch == 'E') {
+      prev = 'e';
+      break; // parse exponent hereafter
+    } else if (endOfNumber(ch) || isspace(ch)) {
+      unget();
+      return finish();
+    } else {
+      std::stringstream msg;
+      msg <<"Invalid ch: '" << (char)ch << "' in number.";
+      throw exceptionAt(msg);
+    }
+    prev = ch;
+  };
+
+  // parse exponent
+  while ((ch = get()) != -1) {
+    if (ch > '0' && ch <= '9')
+      exponBuf += ch;
+    else if (ch == '0' && prev != 'e')
+      exponBuf += ch;
+    else if ((ch == '+' || ch == '-') && prev == 'e')
+      exponBuf += ch;
+    else if (endOfNumber(ch) || isspace(ch)) {
+      unget();
+      return finish();
+    } else {
+      std::stringstream msg;
+      msg <<"Invalid ch: '" << (char)ch << "' in number exponent.";
+      throw exceptionAt(msg);
+    }
     prev = ch;
   }
-  return std::make_unique<Number>(std::stof(buf));
+
+  std::stringstream msg;
+  msg << "Invalid ch: '" << (char)ch << "' in number.";
+  throw exceptionAt(msg);
 }
 
-VluType parseString(std::stringstream& jsn) {
+VluType
+Parser::parseString() {
   std::string buf;
-  bool esc = false;
-  int ch = jsn.get();
+  int ch = get();
   if (ch != '"') throw "Not a string";
-  while (!jsn.eof()) {
-    ch = jsn.get();
+
+  while ((ch = get()) != -1) {
     switch (ch) {
-    case '"':
-      if (esc) { esc = false; buf += ch; }
-      else return std::make_unique<String>(buf);
-      break;
+    case '"': return std::make_unique<String>(buf);
+    case '/': {
+      std::stringstream msg;
+      msg << "Char '" << ch << "' not allowed unescaped in string.";
+      throw exceptionAt(msg);
+    } break;
     case '\\':
-      if (!esc) esc = true;
-      else buf += ch;
+      while (ch && (ch = get()) != -1) {
+        switch (ch) {
+        case '"': buf += '"'; ch = 0; break;
+        case '\\': buf += '\\'; ch = 0; break;
+        case '/': buf += '/'; ch = 0; break;
+        case 'b': buf += '\b'; ch = 0; break;
+        case 'f': buf += '\f'; ch = 0; break;
+        case 'n': buf += '\n'; ch = 0; break;
+        case 'r': buf += '\r'; ch = 0; break;
+        case 't': buf += '\t'; ch = 0; break;
+        case 'u': {
+          // specialcase utf 8  2 bytes
+          std::string hex{"0x"};
+          buf += std::stoi(hex+m_src.substr(m_pos-1, 2));
+          buf += std::stoi(hex+m_src.substr(m_pos+1, 2));
+          m_pos += 3;
+          ch = 0;
+        } break;
+        default:
+          std::stringstream msg;
+          msg << "Unrecognized escape sequence \\" << ch;
+          throw exceptionAt(msg);
+        }
+      }
       break;
     default: buf += ch;
     }
   }
-  throw "String not terminated";
+  std::stringstream msg;
+  msg << "String not terminated";
+  throw exceptionAt(msg);
 }
 
-VluType parseValue(std::stringstream& jsn) {
-  int ch = jsn.peek();
+VluType
+Parser::parseValue() {
+  int ch = peek();
   switch (ch) {
-  case '[': return parseArray(jsn);
-  case '{': return parseObject(jsn);
-  case '"': return parseString(jsn);
+  case '[': return parseArray();
+  case '{': return parseObject();
+  case '"': return parseString();
   case 'n':
-    expect("null", jsn);
+    expect("null");
     return std::make_unique<Null>();
   case 't':
-    expect("true", jsn);
+    expect("true");
     return std::make_unique<Bool>(true);
   case 'f':
-    expect("false", jsn);
+    expect("false");
     return std::make_unique<Bool>(false);
   case '-': case '+': case '0': case '1': case '2': case '3':
   case '4': case '5': case '6': case '7': case '8': case '9':
-    return parseNumber(jsn);
+    return parseNumber();
   default: {
     std::stringstream msg;
     msg << "Unhandled ch: " << (char)ch;
-    throw Exception(msg.str().c_str());
+    throw exceptionAt(msg);
   }
   }
-  return std::make_unique<Undefined>();
 }
 
-VluType parseArray(std::stringstream& jsn) {
+VluType
+Parser::parseArray() {
   auto root = std::make_unique<Array>();
-  uint iter = 0;
-  expect("[", jsn);
-  while (!jsn.eof()) {
-    if (iter++) expect(",", jsn);
-    else eatWhitespace(jsn);
-    root->push(parseValue(jsn));
-    if (jsn.peek() == ']') {
-      jsn.get(); break;
+  expect("[");
+  while (!eof()) {
+    eatWhitespace();
+    root->push(parseValue());
+    eatWhitespace();
+    if (peek() == ']') {
+      get(); break;
     }
+    expect(",");
   }
   return root;
 }
 
-VluType parseObject(std::stringstream& jsn) {
+VluType
+Parser::parseObject() {
   auto root = std::make_unique<Object>();
-  uint iter = 0;
-  expect("{", jsn);
-  while (!jsn.eof()) {
-    if (iter++) expect(",", jsn);
-    else eatWhitespace(jsn);
-    auto key = parseString(jsn);
-    expect(":", jsn);
-    root->set(*key->asString(), parseValue(jsn));
-    if (jsn.peek() == '}') {
-      jsn.get(); break;
+  int ch;
+  expect("{");
+  while ((ch = peek()) != -1) {
+    eatWhitespace();
+    auto key = parseString();
+    expect(":");
+    eatWhitespace();
+    root->set(*key->asString(), parseValue());
+    eatWhitespace();
+    if (peek() == '}') {
+      get(); break;
     }
+    expect(",");
   }
   return root;
 }
 
-VluType Json::parse(const std::string& jsnStr) {
-  std::stringstream sjson; sjson << jsnStr;
-  return parse(sjson);
+
+ParseException
+Parser::exceptionAt(std::stringstream& msg)
+{
+  size_t pos = 0, prevPos = 0, lineNr = 0;
+  std::string line;
+  do {
+    pos = m_src.find('\n', prevPos);
+    line = m_src.substr(prevPos, pos);
+    if (pos < m_src.size())
+      prevPos = pos + 1;
+    ++lineNr;
+  } while(pos < m_pos);
+
+  auto colNr = m_pos + 1 - (lineNr > 1 ? prevPos : 0);
+
+  auto fromPos = m_pos > 30 ? m_pos -30 : 0;
+   // make sure problemStr does not contain \n
+  size_t p = fromPos, endPos = fromPos + 60;
+  while ((p = m_src.find('\n', p)) != std::string::npos) {
+    if (p < m_pos)
+      fromPos = p+1;
+    else {
+      endPos = p;
+      break;
+    }
+    ++p;
+  }
+
+  auto strEnd = m_src.substr(m_pos, endPos - m_pos);
+  auto strStart = m_src.substr(fromPos, m_pos - fromPos);
+  auto lenToPos = utf8_strnlen(strStart) +1;
+  auto len = strStart.size();
+
+  // make assume a tab is 4 spaces
+  p = 0;
+  while ((p = strStart.find('\t', p)) != std::string::npos) {
+    lenToPos += 4;
+    ++p;
+  }
+
+  msg << " Line " << lineNr << " col " << colNr
+      << "\n" << strStart << strEnd << "\n"
+      << std::setw(lenToPos) << std::setfill(' ')
+      << "^\n";
+
+  return msg.str();
 }
 
-VluType Json::parse(std::stringstream& jsn) {
-  eatWhitespace(jsn);
-  while (!jsn.eof()) {
-    int ch = jsn.peek();
-    switch (ch) {
-    case '{':
-      return parseObject(jsn);
-    case '[':
-      return parseArray(jsn);
-    default:
-      std::stringstream msg;
-      msg << "Invalid in root " << (char)ch;
-      throw Exception(msg.str().c_str());
-    }
-  }
-  return std::make_unique<Undefined>();
+VluType Json::parse(std::string_view jsnStr)
+{
+  Parser parser;
+  return parser.parse(jsnStr);
 }

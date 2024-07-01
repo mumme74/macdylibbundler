@@ -565,10 +565,9 @@ TEST(ObjectTest, values) {
 
 // -------------------------------------------------------------
 
-TEST(ParseTest, asStringStream) {
-  std::stringstream in;
-  in << "[null,123]";
-  auto vlu = parse(in);
+TEST(ParseTest, asParserClass) {
+  Parser json;
+  auto vlu = json.parse("[null,123]");
   EXPECT_EQ(vlu->isArray(), true);
   EXPECT_EQ((*vlu->asArray())[0].isNull(), true);
   EXPECT_EQ((*vlu->asArray())[1].isNumber(), true);
@@ -589,10 +588,39 @@ TEST(ParseTest, asCString) {
   EXPECT_EQ((*vlu->asArray())[1].isNumber(), true);
   EXPECT_EQ((*vlu->asArray())[1].asNumber()->vlu(), 123);
 };
+TEST(ParseTest, nestedArray) {
+  auto vlu = parse("[null,[123]]");
+  EXPECT_EQ(vlu->isArray(), true);
+  EXPECT_EQ((*vlu->asArray())[0].isNull(), true);
+  EXPECT_EQ((*vlu->asArray())[1].isArray(), true);
+  EXPECT_EQ(vlu->asArray()->at(1)->asArray()->at(0)
+            ->asNumber()->vlu(), 123);
+};
+TEST(ParseTest, nestedArray2) {
+  auto vlu = parse("[null,[123, \"456\"]]");
+  EXPECT_EQ(vlu->isArray(), true);
+  EXPECT_EQ((*vlu->asArray())[0].isNull(), true);
+  EXPECT_EQ((*vlu->asArray())[1].isArray(), true);
+  EXPECT_EQ(vlu->asArray()->at(1)->asArray()->at(0)->
+            asNumber()->vlu(), 123);
+  EXPECT_EQ(vlu->asArray()->at(1)->asArray()->at(1)->
+            asString()->vlu(), "456");
+};
+TEST(ParseTest, whitespaceTestArrray ) {
+  auto vlu = parse("[\tnull, [123, \n\"456\"\n]\r]");
+  EXPECT_EQ(vlu->isArray(), true);
+  EXPECT_EQ((*vlu->asArray())[0].isNull(), true);
+  EXPECT_EQ((*vlu->asArray())[1].isArray(), true);
+  EXPECT_EQ(vlu->asArray()->at(1)->asArray()->at(0)->
+            asNumber()->vlu(), 123);
+  EXPECT_EQ(vlu->asArray()->at(1)->asArray()->at(1)->
+            asString()->vlu(), "456");
+};
 TEST(ParseTest, objectRoot) {
   auto vlu = parse("{ \
-    \"n\":null,\"b\":false,\"num\":123, \
-    \"s\":\"hej!\",\"a\":[null],\"o\":{\"subNum\":321}}");
+    \"n\":null,\"b\":false ,\"num\":123, \
+    \"s\":\"hej!\",\"a\":[null\n]\
+    ,\"o\":\t{\"subNum\":\n321\n}}");
   ASSERT_EQ(vlu->isObject(), true);
   auto root = *vlu->asObject();
   EXPECT_EQ(root.length(), 6);
@@ -616,8 +644,8 @@ TEST(ParseTest, objectRoot) {
   //std::cout << "ser:" << root.serialize(2,1).str() << std::endl;
 };
 TEST(ParseTest, numberParse) {
-  VluType vlu = parse("{\"a\":023,\"b\":0.123, \
-      \"c\":-45, \"d\": +65, \
+  VluType vlu = parse("{\"a\":23,\"b\":0.123, \
+      \"c\":-45, \"d\": 65, \
       \"e\":3e2,\"f\":1E-9}");
   ASSERT_EQ(vlu->isObject(), true);
   auto root = *vlu->asObject();
@@ -629,6 +657,40 @@ TEST(ParseTest, numberParse) {
   EXPECT_EQ(root["e"].asNumber()->vlu(), 300);
   EXPECT_FLOAT_EQ(root["f"].asNumber()->vlu(), 0.000000001);
 
+};
+TEST(ParseTest, numberNoTrow) {
+  EXPECT_NO_THROW(parse("[3]"));
+  EXPECT_NO_THROW(parse("[-3]"));
+  EXPECT_NO_THROW(parse("[-30.0]"));
+  EXPECT_NO_THROW(parse("[-3e10]"));
+  EXPECT_NO_THROW(parse("[-300e-10]"));
+  EXPECT_NO_THROW(parse("[-300e+10]"));
+  EXPECT_NO_THROW(parse("[-3.00E+10]"));
+  EXPECT_NO_THROW(parse("[-30.0e-10]"));
+};
+TEST(ParseTest, numberThrow) {
+  EXPECT_ANY_THROW(parse("[01]"));
+  EXPECT_ANY_THROW(parse("[+3]"));
+  EXPECT_ANY_THROW(parse("[+30.0]"));
+  EXPECT_ANY_THROW(parse("[-300e-1.0]"));
+  EXPECT_ANY_THROW(parse("[-300e +10]"));
+  EXPECT_ANY_THROW(parse("[-300e, +10]"));
+  EXPECT_ANY_THROW(parse("[-300E+10e2]"));
+  EXPECT_ANY_THROW(parse("[-300e-10E2]"));
+};
+TEST(ParseTest, stringNoThrow) {
+  VluType vlu;
+  EXPECT_NO_THROW(vlu = parse("[\"s\\n\\r\\t\\b\\f\\t\\\\ \\/\\\"in\\\"\\/\"]"));
+  auto s = vlu->asArray()->at(0)->asString()->vlu();
+  EXPECT_EQ(s, "s\n\r\t\b\f\t\\ /\"in\"/");
+  EXPECT_NO_THROW(vlu = parse("[\"\\u1337 \\uD834\\uDD1E\"]"));
+};
+TEST(ParseTest, stringThrow) {
+  EXPECT_ANY_THROW(parse("[\"\\c\"]"));
+  EXPECT_ANY_THROW(parse("[\"\\0\"]"));
+  EXPECT_ANY_THROW(parse("[\"\\x\"]"));
+  EXPECT_ANY_THROW(parse("[\"\\u\"]"));
+  EXPECT_ANY_THROW(parse("[\"/\"]"));
 };
 TEST(ParseTest, invalidRoot) {
   EXPECT_ANY_THROW(parse("undefined"));
