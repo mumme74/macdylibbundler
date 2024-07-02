@@ -198,6 +198,7 @@ public:
   String& operator= (String&& rhs);
   std::string vlu() const;
   std::string toString() const;
+  std::size_t length() const { return m_vlu.strVlu.get()->size(); }
   std::stringstream serialize(int indent = 0, int depth = 0) const;
 };
 
@@ -225,6 +226,13 @@ public:
   VluType pop();
   VluType shift();
   size_t length() const;
+
+  using iterator=std::vector<VluType>::iterator;
+  using const_iterator=std::vector<VluType>::const_iterator;
+  iterator begin() { return m_vlu.arrVlu->begin(); }
+  iterator end() { return m_vlu.arrVlu->end(); }
+  const_iterator begin() const { return m_vlu.arrVlu->begin(); }
+  const_iterator end() const { return m_vlu.arrVlu->end(); }
 };
 
 using ObjInitializer = const std::initializer_list<
@@ -262,6 +270,13 @@ public:
   std::vector<std::string> keys() const;
   std::vector<VluBase*> values() const;
   size_t length() const { return m_vlu.objVlu->size(); }
+
+  using iterator=std::map<const std::string, Json::VluType>::iterator;
+  using const_iterator=ObjType::const_iterator;
+  iterator begin() { return m_vlu.objVlu->begin(); }
+  iterator end() { return m_vlu.objVlu->end(); }
+  const_iterator begin() const { return m_vlu.objVlu->begin(); }
+  const_iterator end() const { return m_vlu.objVlu->end(); }
 };
 
 class Parser {
@@ -297,6 +312,7 @@ private:
 };
 
 VluType parse(std::string_view jsnStr);
+std::string serialize(const VluBase* jsonVlu, int indent = 0);
 
 }; // namespace Json
 

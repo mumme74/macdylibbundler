@@ -739,11 +739,18 @@ Array::serialize(int indent /* = 0 */, int depth /*= 0*/) const
   std::stringstream out;
   auto ind = createIndent(indent, depth);
   out << ind << "[";
+  auto p = out.tellp();
   for (const auto& vlu : *m_vlu.arrVlu) {
     if (iter++) out << ",";
     out << vlu->serialize(indent, depth + 1).str();
   }
-  out << ind << "]";
+  if (p < out.tellp()) {
+    if (indent > 0 && ind[0] != '\n')
+      out << '\n';
+    out << ind;
+  }
+
+  out << "]";
 
   return out;
 }
@@ -860,7 +867,7 @@ Object::serialize(int indent, int depth) const
         << str.substr(str.find_first_not_of(' '));
   }
   if (p < out.tellp()) {
-    if (indent > 0 && ind.size() && ind[0] != '\n')
+    if (indent > 0 && ind[0] != '\n')
       out << '\n';
     out << ind;
   }
@@ -1068,9 +1075,11 @@ Parser::parseString() {
     switch (ch) {
     case '"': return std::make_unique<String>(buf);
     case '/': {
-      std::stringstream msg;
+      // we break json standard here, python json package (maybe others )
+      /*std::stringstream msg;
       msg << "Char '" << ch << "' not allowed unescaped in string.";
-      throw exceptionAt(msg);
+      throw exceptionAt(msg);*/
+      buf += ch;
     } break;
     case '\\':
       while (ch && (ch = get()) != -1) {
@@ -1223,8 +1232,16 @@ Parser::exceptionAt(std::stringstream& msg)
   return msg.str();
 }
 
-VluType Json::parse(std::string_view jsnStr)
+VluType
+Json::parse(std::string_view jsnStr)
 {
   Parser parser;
   return parser.parse(jsnStr);
+}
+
+
+std::string
+Json::serialize(const VluBase* jsonVlu, int indent)
+{
+  return jsonVlu->serialize(indent).str();
 }
