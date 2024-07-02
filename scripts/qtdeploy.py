@@ -296,11 +296,20 @@ class DeployQt():
       print(f"/!\\copy failed\nfrom:{src} \nto  {dst}")
       return False
 
-  def postProcess(self)->None:
+  def postProcess(self)->bool:
+    cmd = {"add_search_paths": self.searchPaths()}
+    res = json.loads(question(json.dumps(cmd)))
+    if "error" in res and res['error']:
+      print("Failed to set search paths to parent process, error "
+            f"{res['error']}")
+      return False
+
     cmd = {"fixup_binaries": DeployQt.dylibs}
     res = json.loads(question(json.dumps(cmd)))
     if "error" in res and res['error']:
       print(f"*Failed to run strip on {dst}, error:{res['error']}")
+      return False
+    return True
 
   def createQtConf(self)->None:
     qtConfDir = path.join(
@@ -315,6 +324,15 @@ class DeployQt():
     self.log("Creating qt.conf")
     with open(qtConfDir, "w") as file:
       file.write("[Paths]\nPlugins\ imports = imports\n")
+
+  def searchPaths(self)->None:
+    paths = []
+    for plug in self.pluginsToDeploy:
+      d = path.join(self.pluginsDestDir, path.dirname(plug))
+      if not (d in paths):
+        paths.append(d)
+    return paths
+
 
   def deployPlugins(self)->None:
     self.log(f"Deploying plugins from:{self.pluginSrcDir}")

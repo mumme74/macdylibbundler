@@ -429,11 +429,25 @@ const ProtocolItem protocol[] {
         }
     },
     {
+        "add_search_paths",
+        "Add search paths to parents process bore it tries to fixup_binaries.",
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args) {
+            auto dylib = DylibBundler::instance();
+            if (!args->isArray()) {
+                obj->set(cmd, Json::Bool(false));
+                obj->set("error", Json::String("Expected an array"));
+            } else {
+                for (const auto& p : *args->asArray())
+                    Settings::addSearchPath(p->asString()->vlu());
+                obj->set(cmd, Json::Bool(true));
+            }
+        }
+    },
+    {
         "fixup_binaries",
         "Do things on these binary files after script has finished them.\n"
         "Such as scanning them for dependencies and running install_name_cmd on them.",
         [](const char* cmd, Json::Object* obj, Json::VluBase* args){
-            (void)args;
             auto dylib = DylibBundler::instance();
             auto res = dylib->fixPathsInBinAndCodesign(args->asArray());
             obj->set(cmd, std::move(res));
