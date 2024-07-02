@@ -36,27 +36,54 @@ public:
     ~DylibBundler();
     static DylibBundler* instance();
 
+    /// @brief  collect dependencies for file
+    /// @param file The file to check
     void collectDependencies(PathRef file);
+    /// @brief  collect all un collected subDependancies
     void collectSubDependencies();
-    void doneWithDeps_go();
+    /// @brief createDestDir/appbundle and process all files
+    void moveAndFixBinaries();
+    /// checks if path is a relative path i app binary
     static bool isRpath(PathRef path);
+    /// @brief Search and find real paths for relative paths from binary
+    /// @param rpath_file The file that has the rpath to look for
+    /// @param dependent_file The dependency we search for
+    /// @return true if found
     std::string searchFilenameInRPaths(
       PathRef rpath_file, PathRef dependent_file);
+    /// @brief true if any dependency is a framework dependency
     bool hasFrameworkDep();
 
+    /// @brief Dump all dependencies to json
+    /// @param srcFile Only dump for this sourcefile if set
+    /// @return Json::Object unique_ptr with the dump
     Json::VluType toJson(std::string_view srcFile = "") const;
 
+    /// @brief Called from scrips. Meant to be called from script
+    ///   fix libpath and rpaths in binary and codesign(if enabled) on files
+    /// @param files The files to fix
+    Json::VluType fixPathsInBinAndCodesign(const Json::Array& files);
+
 private:
+    enum DepState {
+      Nothing              = 0x00,
+      Collected            = 0x01,
+      Copied               = 0x02,
+      InternalPathsChanged = 0x04,
+      Codesigned           = 0x08,
+      Done                 = 0x10
+    };
     void changeLibPathsOnFile(PathRef file) const;
     void collectRpaths(PathRef file);
     void fixRPathsOnFile(PathRef original_file, PathRef file_to_fix);
     void addDependency(PathRef path, PathRef filename);
     void collectDep(PathRef file, std::vector<std::string> &lines);
     void createDestDir() const;
+    void fixupBinary(PathRef src, PathRef dest, bool iDependency);
 
     std::vector<Dependency> m_deps;
     std::map<std::string, std::vector<Dependency> > m_deps_per_file;
-    std::map<std::string, bool> m_collected;
+    std::map<std::string, int> m_dep_state;
     std::map<std::string, Path> m_rpaths_per_file;
     std::map<std::string, Path> m_rpath_to_fullpath;
     Path m_currentFile;

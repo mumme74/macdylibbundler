@@ -116,7 +116,7 @@ int main (int argc, const char * argv[])
 
     bundler.collectSubDependencies();
     if (!Settings::shouldOnlyRunScripts())
-      bundler.doneWithDeps_go();
+      bundler.moveAndFixBinaries();
 #ifdef USE_SCRIPTS
     runPythonScripts_afterHook();
 #endif

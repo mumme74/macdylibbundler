@@ -51,7 +51,7 @@ void mkInfoPlist();
 DylibBundler::DylibBundler():
     m_deps{},
     m_deps_per_file{},
-    m_collected{},
+    m_dep_state{},
     m_rpaths_per_file{},
     m_rpath_to_fullpath{},
     m_currentFile{}
@@ -74,7 +74,7 @@ DylibBundler *DylibBundler::s_instance = nullptr;
 
 void
 DylibBundler::changeLibPathsOnFile(PathRef file ) const {
-    if (m_collected.find(file.string()) == m_collected.end()) {
+    if (m_dep_state.find(file.string()) == m_dep_state.end()) {
         std::cout << "    ";
         const_cast<DylibBundler*>(this)->collectDependencies(file);
         std::cout << "\n";
@@ -164,8 +164,6 @@ DylibBundler::searchFilenameInRPaths(
                     return true;
                 }
             }
-
-            return false;
         }
         return false;
     };
@@ -320,7 +318,7 @@ void
 DylibBundler::collectDependencies(PathRef file)
 {
     m_currentFile = file;
-    if (m_collected.find(file.string()) != m_collected.end())
+    if (m_dep_state.find(file.string()) != m_dep_state.end())
         return;
 
     collectRpaths(file);
@@ -360,7 +358,7 @@ DylibBundler::collectDependencies(PathRef file)
         addDependency(Path(dep_path.data()), file);
     }
 
-    m_collected[file.string()] = true;
+    m_dep_state[file.string()] |= Collected;
 }
 
 void
@@ -370,8 +368,7 @@ DylibBundler::collectSubDependencies()
     size_t dep_amount = m_deps.size();
 
     // recursively collect each dependency's dependencies
-    while(true)
-    {
+   do {
         for (const auto& dep : m_deps)
         {
             auto original_path = dep.getOriginal();
@@ -386,8 +383,8 @@ DylibBundler::collectSubDependencies()
             collectDependencies(original_path);
         }
 
-        if(m_deps.size() == dep_amount) break; // no more dependencies were added on this iteration, stop searching
-    }
+    } while (m_deps.size() != dep_amount);
+      // no more dependencies were added on this iteration, stop searching
 }
 
 bool
@@ -423,6 +420,55 @@ DylibBundler::toJson(std::string_view srcFile) const
     return root;
 }
 
+Json::VluType
+DylibBundler::fixPathsInBinAndCodesign(const Json::Array& files)
+{
+    auto resObj = std::make_unique<Json::Object>();
+    try {
+        for (const auto& file : files) {
+            if (!file->isString()) {
+                std::stringstream msg;
+                msg << "*Expected a string, but got a " << file->typeName()
+                    << std::endl;
+                throw msg.str();
+            }
+            collectDependencies(file->asString()->vlu());
+        }
+        collectSubDependencies();
+
+        std::cout << "\n Postprocess requested by a script: " << std::endl;
+
+        // print info to user
+        for(const auto& dep : m_deps) {
+            if ((m_dep_state[dep.getCanonical().string()] & Done) == 0)
+                dep.print();
+        }
+        std::cout << std::endl;
+
+        // copy dependency files if requested by user
+        if(Settings::bundleLibs())
+        {
+            for(const auto& dep : m_deps) {
+                if ((m_dep_state[dep.getCanonical().string()] & Done) == 0)
+                    fixupBinary(
+                        dep.getCanonical(),
+                        dep.getInstallPath(), true);
+            }
+        }
+
+        for(const auto& file : Settings::srcFiles()) {
+            fixupBinary(file.src, file.out, false);
+        }
+        resObj->set("result", Json::Bool(true));
+    } catch(std::exception& e) {
+        resObj->set("error", Json::String(e.what()));
+    } catch(std::string& errStr) {
+        resObj->set("error", Json::String(errStr));
+    }
+
+    return resObj;
+}
+
 void
 DylibBundler::createDestDir() const
 {
@@ -435,7 +481,48 @@ DylibBundler::createDestDir() const
 }
 
 void
-DylibBundler::doneWithDeps_go()
+DylibBundler::fixupBinary(PathRef src, PathRef dest, bool isSubDependency)
+{
+    if ((m_dep_state[src.string()] & Done) == Done) {
+        std::cout << "\n*Skipping " << dest << " already done \n";
+        return;
+    }
+    if (Settings::verbose()) {
+        std::cout << "\n* Processing "
+                  << (isSubDependency ? " dependency " : "")
+                  << src;
+        if (src != dest)
+            std::cout << std::string(" into ") << dest;
+        std::cout << std::endl;
+    }
+    if (!fs::exists(dest) &&
+        (m_dep_state[src.string()] & Copied) == 0
+    ) {
+        copyFile(src, dest); // to set write permission or move
+        m_dep_state[src.string()] |= Copied;
+    }
+    if ((m_dep_state[src.string()] & InternalPathsChanged) == 0) {
+        changeLibPathsOnFile(dest.string());
+        fixRPathsOnFile(src.string(), dest.string());
+        m_dep_state[src.string()] |= InternalPathsChanged;
+    }
+    if ((m_dep_state[src.string()] & Codesigned) == 0 &&
+        Settings::canCodesign()
+    ) {
+        adhocCodeSign(dest.string());
+        m_dep_state[src.string()] |= Codesigned;
+    }
+
+    if (Settings::verbose())
+        std::cout << "\n-- Done Processing "
+                  << (isSubDependency ? " dependency " : "")
+                  << " for " << src << std::endl;
+
+    m_dep_state[src.string()] |= Done;
+}
+
+void
+DylibBundler::moveAndFixBinaries()
 {
     std::cout << std::endl;
 
@@ -447,40 +534,17 @@ DylibBundler::doneWithDeps_go()
 
     if(Settings::createAppBundle()) mkAppBundleTemplate();
 
-    // copy files if requested by user
+    // copy dependency files if requested by user
     if(Settings::bundleLibs())
     {
         createDestDir();
-
-        for(const auto& dep : m_deps) {
-            if (Settings::verbose())
-                std::cout << "\n* Processing dependency "
-                          << dep.getInstallPath() << std::endl;
-            dep.copyMyself();
-            changeLibPathsOnFile(dep.getInstallPath());
-            fixRPathsOnFile(dep.getOriginal(), dep.getInstallPath());
-            adhocCodeSign(dep.getInstallPath());
-            if (Settings::verbose())
-                std::cout << "\n-- Done Processing dependency for "
-                          << dep.getInnerPath() << std::endl;
-        }
+        for(const auto& dep : m_deps)
+            fixupBinary(
+                dep.getCanonical(), dep.getInstallPath(), true);
     }
 
-    for(const auto& files : Settings::srcFiles()) {
-        if (Settings::verbose()) {
-            std::cout << "\n* Processing " << files.src;
-            if (files.out != files.src)
-                std::cout << std::string(" into ") << files.out;
-            std::cout << std::endl;
-        }
-
-        copyFile(files.src, files.out); // to set write permission or move
-        changeLibPathsOnFile(files.out.string());
-        fixRPathsOnFile(files.src.string(), files.out.string());
-        adhocCodeSign(files.out.string());
-        if (Settings::verbose())
-            std::cout << "\n-- Done Processing dependency for "
-                      << files.src << std::endl;
+    for(const auto& file : Settings::srcFiles()) {
+        fixupBinary(file.src, file.out, false);
     }
 }
 
