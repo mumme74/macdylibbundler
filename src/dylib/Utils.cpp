@@ -73,7 +73,10 @@ void copyFile(PathRef from, PathRef to)
 
     // copy file to local directory
     std::error_code err;
-    if (!std::filesystem::copy_file(from, to, err)) {
+    std::filesystem::create_directories(to.parent_path(), err);
+    if (!err)
+        std::filesystem::copy_file(from, to, err);
+    if (err) {
         ss << "\n\nError : An error occurred while trying to copy "
            << "file " << from << " to " << to << " err: "
            << err.message() << "\n";
