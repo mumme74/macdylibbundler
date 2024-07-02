@@ -58,10 +58,10 @@ ArgParser args {
     [](std::string vlu){ vlu.empty() ? Settings::setCreateAppBundle(true): Settings::setAppBundlePath(vlu);}
   },
 #ifdef USE_SCRIPTS
-  {"as","app-bundle-script","run this custom python script after bundle is complete, and after default scripts are runned",
+  {nullptr, "script","run this custom python script after bundle is complete, and after default scripts are runned",
     Settings::setAppBundleScript, ArgItem::ReqVluString
   },
-  {nullptr, "no-app-bundle-scripts","Prevent app bundle scripts from running",Settings::preventAppBundleScripts},
+  {nullptr, "no-scripts","Prevent app bundle scripts from running",Settings::preventScripts},
   {nullptr, "only-scripts","Don't do anything more than running scripts",Settings::setOnlyRunScripts},
 #endif // USE_SCRIPTS
   {"pl","app-info-plist","Optional path to a Info.plist to bundle into app", Settings::setInfoPlist, ArgItem::ReqVluString},
@@ -118,7 +118,8 @@ int main (int argc, const char * argv[])
     if (!Settings::shouldOnlyRunScripts())
       bundler.moveAndFixBinaries();
 #ifdef USE_SCRIPTS
-    runPythonScripts_afterHook();
+    if (!Settings::shouldPreventScripts())
+      runPythonScripts_afterHook();
 #endif
 
     std::cout << "\n\n -- Processed " << amount << " file"
