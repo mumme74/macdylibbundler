@@ -41,6 +41,8 @@ THE SOFTWARE.
 
 std::string handleSubProcessReq(const std::string& request);
 Json::VluType handleJsonReq(Json::VluType jsn);
+void handleCmd(std::string_view cmd, Json::VluBase* params, Json::Object* retObj);
+
 
 class File{
 public:
@@ -134,6 +136,7 @@ bool parentRead(FILE *in, std::string& buf) {
         return false;
     }
     auto siz = sz.u32native();
+    std::cout << "Read " << siz << " bytes from script. << \n";
     auto b = std::make_unique<char[]>(siz+1);
     if (fread(b.get(), 1, siz, in) != siz) {
         std::cerr << "Failed to read " << siz << " bytes\n";
@@ -182,6 +185,7 @@ bool parentLoop(Pipes& pipes) {
             try {
                 jsn = Json::parse(input);
                 resInJson = true;
+                std::cout << jsn->serialize(2).str() << "\n";
             } catch (Json::Exception& e) {
                 std::cerr << e.what() << "\n";
                 return false;
@@ -423,6 +427,17 @@ const ProtocolItem protocol[] {
             obj->set(cmd, std::make_unique<Json::String>(
                 Settings::otoolCmd()));
         }
+    },
+    {
+        "fixup_binaries",
+        "Do things on these binary files after script has finished them.\n"
+        "Such as scanning them for dependencies and running install_name_cmd on them.",
+        [](const char* cmd, Json::Object* obj, Json::VluBase* args){
+            (void)args;
+            auto dylib = DylibBundler::instance();
+            auto res = dylib->fixPathsInBinAndCodesign(args->asArray());
+            obj->set(cmd, std::move(res));
+        }
     }
 };
 
@@ -435,30 +450,21 @@ Json::VluType listProtocol() {
     return obj;
 }
 
-void handleCmd(Json::Array* params, Json::Object* retObj)
+void handleCmd(std::string_view cmd, Json::VluBase* params, Json::Object* retObj)
 {
     // cmd is always the first item in array
-    if (params->length() < 1)
+    if (!cmd.size())
         throw Json::Exception{"No command given"};
-    auto cmd = params->shift();
-    if (!cmd->isString()) {
-        std::stringstream ss;
-        ss  << "Expected a string cmd from script, "
-            << "got a " << cmd->typeName()
-            << " with value: " << cmd->toString() << '\n';
-        throw ss.str();
-    }
 
-    auto cmdStr = cmd->toString();
     for (std::size_t i = 0; i < sizeof(protocol)/sizeof(protocol[0]); ++i) {
         const auto& prot = protocol[i];
-        if (prot.name == cmdStr) {
-            prot.cb(cmdStr.c_str(), retObj, params);
+        if (prot.name == cmd) {
+            prot.cb(cmd.data(), retObj, params);
             return;
         }
     }
 
-    throw std::string("Command: ") + cmdStr + " not valid";
+    throw std::string("*Command: ") + cmd.data() + " not valid";
 }
 
 Json::VluType handleJsonReq(Json::VluType jsn)
@@ -467,22 +473,24 @@ Json::VluType handleJsonReq(Json::VluType jsn)
 
     if (jsn->isArray()) {
         auto arr = jsn->asArray();
-        while (arr->length()) {
-            auto elem = arr->pop();
+        for (const auto& elem : *arr) {
             if (elem->isString()) {
-                auto params = std::make_unique<Json::Array>();
-                params->push(std::move(elem));
-                handleCmd(params.get(), retObj.get());
-            } else if (elem->isArray()) {
-                handleCmd(elem->asArray(), retObj.get());
+                handleCmd(elem->asString()->vlu(), nullptr, retObj.get());
             } else {
                 std::stringstream ss;
                 ss  << "Unhandled json request type from script, "
-                    << "Expected a string or array as request command, "
+                    << "Expected a string or object as request command, "
                     << "got a " << elem->typeName() << '\n';
                 throw ss.str();
             }
         }
+    } else if (jsn->isObject()) {
+        auto obj = jsn->asObject();
+        for (const auto& pair : *obj) {
+            Json::VluBase* params = pair.second.get();
+            handleCmd(pair.first, params, retObj.get());
+        }
+
     } else {
         std::stringstream ss;
         ss << "Mismatched json type in script request "
