@@ -1154,12 +1154,13 @@ Parser::parseArray() {
   expect("[");
   while (!eof()) {
     eatWhitespace();
-    root->push(parseValue());
-    eatWhitespace();
     if (peek() == ']') {
       get(); break;
     }
-    expect(",");
+    root->push(parseValue());
+    eatWhitespace();
+    if (peek() != ']')
+      expect(",");
   }
   return root;
 }
@@ -1171,15 +1172,16 @@ Parser::parseObject() {
   expect("{");
   while ((ch = peek()) != -1) {
     eatWhitespace();
+    if (peek() == '}') {
+      get(); break;
+    }
     auto key = parseString();
     expect(":");
     eatWhitespace();
     root->set(*key->asString(), parseValue());
     eatWhitespace();
-    if (peek() == '}') {
-      get(); break;
-    }
-    expect(",");
+    if (peek() != '}')
+      expect(",");
   }
   return root;
 }

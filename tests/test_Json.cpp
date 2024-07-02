@@ -272,8 +272,8 @@ TEST(ArrayTest, toString) {
 TEST(ArrayTest, serialize) {
   Array e;
   EXPECT_STREQ(e.serialize().str().c_str(), "[]");
-  EXPECT_STREQ(e.serialize(2,1).str().c_str(), "\n  [\n  ]");
-  EXPECT_STREQ(e.serialize(2,2).str().c_str(), "\n    [\n    ]");
+  EXPECT_STREQ(e.serialize(2,1).str().c_str(), "\n  []");
+  EXPECT_STREQ(e.serialize(2,2).str().c_str(), "\n    []");
   Array a; Null n; Number num(123);
   a.push(n);a.push(num);
   EXPECT_STREQ(a.serialize().str().c_str(), "[null,123]");
@@ -551,6 +551,11 @@ TEST(ParseTest, asCString) {
   EXPECT_EQ((*vlu->asArray())[1].isNumber(), true);
   EXPECT_EQ((*vlu->asArray())[1].asNumber()->vlu(), 123);
 };
+TEST(ParseTest, emptyArray) {
+  auto vlu = parse("[]");
+  EXPECT_EQ(vlu->isArray(), true);
+  EXPECT_EQ(vlu->asArray()->length(), 0);
+};
 TEST(ParseTest, nestedArray) {
   auto vlu = parse("[null,[123]]");
   EXPECT_EQ(vlu->isArray(), true);
@@ -606,6 +611,11 @@ TEST(ParseTest, objectRoot) {
   EXPECT_EQ(root["o"].asObject()->get("subNum")->parent(), root.get("o"));
   //std::cout << "ser:" << root.serialize(2,1).str() << std::endl;
 };
+TEST(ParseTest, emptyObject) {
+  auto vlu = parse("{}");
+  EXPECT_EQ(vlu->isObject(), true);
+  EXPECT_EQ(vlu->asObject()->keys().size(), 0);
+};
 TEST(ParseTest, numberParse) {
   VluType vlu = parse("{\"a\":23,\"b\":0.123, \
       \"c\":-45, \"d\": 65, \
@@ -647,13 +657,13 @@ TEST(ParseTest, stringNoThrow) {
   auto s = vlu->asArray()->at(0)->asString()->vlu();
   EXPECT_EQ(s, "s\n\r\t\b\f\t\\ /\"in\"/");
   EXPECT_NO_THROW(vlu = parse("[\"\\u1337 \\uD834\\uDD1E\"]"));
+  EXPECT_NO_THROW(parse("[\"/\"]"));
 };
 TEST(ParseTest, stringThrow) {
   EXPECT_ANY_THROW(parse("[\"\\c\"]"));
   EXPECT_ANY_THROW(parse("[\"\\0\"]"));
   EXPECT_ANY_THROW(parse("[\"\\x\"]"));
   EXPECT_ANY_THROW(parse("[\"\\u\"]"));
-  EXPECT_ANY_THROW(parse("[\"/\"]"));
 };
 TEST(ParseTest, invalidRoot) {
   EXPECT_ANY_THROW(parse("undefined"));
