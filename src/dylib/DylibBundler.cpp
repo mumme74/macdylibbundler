@@ -73,25 +73,27 @@ DylibBundler::instance()
 DylibBundler *DylibBundler::s_instance = nullptr;
 
 void
-DylibBundler::changeLibPathsOnFile(PathRef file ) const {
-    if (m_dep_state.find(file.string()) == m_dep_state.end()) {
+DylibBundler::changeLibPathsOnFile(PathRef file ) {
+    if (m_deps_per_file.find(file.string()) == m_deps_per_file.end()) {
         std::cout << "    ";
-        const_cast<DylibBundler*>(this)->collectDependencies(file);
+        collectDependencies(file, false);
         std::cout << "\n";
     }
     std::cout << "  * Fixing dependencies on " << file << std::endl;
 
-    for(const auto& dep : m_deps_per_file.at(file.string())) {
-        dep.fixFileThatDependsOnMe(file);
+    for(const auto& idx : m_deps_per_file.at(file.string())) {
+        m_deps[idx].fixFileThatDependsOnMe(file);
     }
+    m_dep_state[file.string()] |= LibPathsChanged;
 }
 
 bool // static
 DylibBundler::isRpath(PathRef path)
 {
     auto it = path.begin();
-    return it->filename() == "@rpath" ||
-           it->filename() == "@loader_path";
+    auto fn = it != path.end()
+            ? it->filename().string() : path.string();
+    return fn == "@rpath" || fn == "@loader_path";
 }
 
 void
@@ -217,6 +219,8 @@ DylibBundler::fixRPathsOnFile(
     if (Settings::createAppBundle()) return; // don't change @rpath on app bundles
     std::vector<std::string> rpaths_to_fix;
 
+    if ((m_dep_state[file_to_fix] & RPathsChanged) != 0) return;
+
     for (const auto& pair : m_rpaths_per_file){
         if (pair.first == original_file) {
             rpaths_to_fix.emplace_back(pair.second);
@@ -236,37 +240,32 @@ DylibBundler::fixRPathsOnFile(
                       << file_to_fix << std::endl;
         }
     }
+    m_dep_state[file_to_fix] |= RPathsChanged;
 }
 
 void
-DylibBundler::addDependency(PathRef path, PathRef file
-) {
-    Dependency dep(path, file);
+DylibBundler::addDependency(PathRef path, PathRef file)
+{
+    Dependency dep(path, file, false);
 
     // we need to check if this library was already added to avoid duplicates
     bool in_deps = false;
-    for(auto& dep : m_deps) {
-        if(dep.mergeIfSameAs(dep)) in_deps = true;
+    for (auto& dep : m_deps) {
+        if (dep.mergeIfSameAs(dep)) in_deps = true;
     }
 
-    // check if this library was already added to |m_deps_per_file[filename]| to avoid duplicates
-    std::vector<Dependency> deps_in_file = m_deps_per_file[file.string()];
-    bool in_deps_per_file = false;
-    const int deps_in_file_amount = deps_in_file.size();
-    for(int n=0; n<deps_in_file_amount; n++)
-    {
-        if(dep.mergeIfSameAs(deps_in_file[n])) in_deps_per_file = true;
-    }
-
-    if(Settings::blacklistedPath(dep.getPrefix())) {
+    if (Settings::blacklistedPath(dep.getPrefix())) {
         if (Settings::verbose())
             std::cout << "*Ignoring dependency " << dep.getPrefix()
                       << " prefix not bundled" << std::endl;
         return;
     }
 
-    if(!in_deps) m_deps.push_back(dep);
-    if(!in_deps_per_file) m_deps_per_file[file.string()].push_back(dep);
+    if (!in_deps) {
+        m_deps.push_back(dep);
+        m_deps_per_file[dep.getInstallPath()]
+            .push_back(m_deps.size()-1);
+    }
 }
 
 /*
@@ -315,7 +314,7 @@ DylibBundler::collectDep(
 }
 
 void
-DylibBundler::collectDependencies(PathRef file)
+DylibBundler::collectDependencies(PathRef file, bool isExecutable)
 {
     m_currentFile = file;
     if (m_dep_state.find(file.string()) != m_dep_state.end())
@@ -354,21 +353,26 @@ DylibBundler::collectDependencies(PathRef file)
         if (Settings::verbose())
           std::cout << "  adding: " << dep_path << " dependent file: " << file <<std::endl;
         else std::cout << ".";
-        fflush(stdout);
+        std::cout.flush();
         addDependency(Path(dep_path.data()), file);
     }
 
+    Dependency exec(file, file, isExecutable);
+    m_deps.emplace_back(exec);
+    m_deps_per_file[exec.getInstallPath().string()]
+        .emplace_back(m_deps.size()-1);
     m_dep_state[file.string()] |= Collected;
 }
 
 void
 DylibBundler::collectSubDependencies()
 {
-    // print status to user
-    size_t dep_amount = m_deps.size();
+    size_t dep_amount;
 
     // recursively collect each dependency's dependencies
-   do {
+    do {
+        dep_amount = m_deps.size();
+
         for (const auto& dep : m_deps)
         {
             auto original_path = dep.getOriginal();
@@ -380,7 +384,7 @@ DylibBundler::collectSubDependencies()
                 original_path = searchFilenameInRPaths(
                     original_path, original_path);
 
-            collectDependencies(original_path);
+            collectDependencies(original_path, false);
         }
 
     } while (m_deps.size() != dep_amount);
@@ -389,7 +393,8 @@ DylibBundler::collectSubDependencies()
 
 bool
 DylibBundler::hasFrameworkDep() {
-    return m_deps.end() != std::find_if(m_deps.begin(), m_deps.end(),[](Dependency &dep){
+    return m_deps.end() != std::find_if(
+        m_deps.begin(), m_deps.end(),[](const auto &dep){
         return dep.isFramework();
     });
 }
@@ -406,8 +411,8 @@ DylibBundler::toJson(std::string_view srcFile) const
         srcFiles.push(String(pair.first));
         if (srcFile == pair.first || srcFile.empty()) {
             Array value;
-            for (const auto& dep : pair.second)
-                value.push(dep.toJson());
+            for (const auto& idx : pair.second)
+                value.push(m_deps[idx].toJson());
             src_files.set(pair.first, value);
         }
     }
@@ -421,18 +426,18 @@ DylibBundler::toJson(std::string_view srcFile) const
 }
 
 Json::VluType
-DylibBundler::fixPathsInBinAndCodesign(const Json::Array& files)
+DylibBundler::fixPathsInBinAndCodesign(const Json::Array* files)
 {
     auto resObj = std::make_unique<Json::Object>();
     try {
-        for (const auto& file : files) {
+        for (auto& file : *files) {
             if (!file->isString()) {
                 std::stringstream msg;
                 msg << "*Expected a string, but got a " << file->typeName()
                     << std::endl;
                 throw msg.str();
             }
-            collectDependencies(file->asString()->vlu());
+            collectDependencies(file->asString()->vlu(), false);
         }
         collectSubDependencies();
 
@@ -440,7 +445,7 @@ DylibBundler::fixPathsInBinAndCodesign(const Json::Array& files)
 
         // print info to user
         for(const auto& dep : m_deps) {
-            if ((m_dep_state[dep.getCanonical().string()] & Done) == 0)
+            if ((m_dep_state[dep.getInstallPath().string()] & Done) == 0)
                 dep.print();
         }
         std::cout << std::endl;
@@ -449,15 +454,11 @@ DylibBundler::fixPathsInBinAndCodesign(const Json::Array& files)
         if(Settings::bundleLibs())
         {
             for(const auto& dep : m_deps) {
-                if ((m_dep_state[dep.getCanonical().string()] & Done) == 0)
+                if ((m_dep_state[dep.getInstallPath().string()] & Done) == 0)
                     fixupBinary(
                         dep.getCanonical(),
                         dep.getInstallPath(), true);
             }
-        }
-
-        for(const auto& file : Settings::srcFiles()) {
-            fixupBinary(file.src, file.out, false);
         }
         resObj->set("result", Json::Bool(true));
     } catch(std::exception& e) {
@@ -483,7 +484,7 @@ DylibBundler::createDestDir() const
 void
 DylibBundler::fixupBinary(PathRef src, PathRef dest, bool isSubDependency)
 {
-    if ((m_dep_state[src.string()] & Done) == Done) {
+    if ((m_dep_state[dest.string()] & Done) == Done) {
         std::cout << "\n*Skipping " << dest << " already done \n";
         return;
     }
@@ -496,21 +497,19 @@ DylibBundler::fixupBinary(PathRef src, PathRef dest, bool isSubDependency)
         std::cout << std::endl;
     }
     if (!fs::exists(dest) &&
-        (m_dep_state[src.string()] & Copied) == 0
+        (m_dep_state[dest.string()] & Copied) == 0
     ) {
         copyFile(src, dest); // to set write permission or move
-        m_dep_state[src.string()] |= Copied;
+        m_dep_state[dest.string()] |= Copied;
     }
-    if ((m_dep_state[src.string()] & InternalPathsChanged) == 0) {
-        changeLibPathsOnFile(dest.string());
-        fixRPathsOnFile(src.string(), dest.string());
-        m_dep_state[src.string()] |= InternalPathsChanged;
-    }
-    if ((m_dep_state[src.string()] & Codesigned) == 0 &&
+    changeLibPathsOnFile(dest.string());
+    fixRPathsOnFile(src.string(), dest.string());
+
+    if ((m_dep_state[dest.string()] & Codesigned) == 0 &&
         Settings::canCodesign()
     ) {
         adhocCodeSign(dest.string());
-        m_dep_state[src.string()] |= Codesigned;
+        m_dep_state[dest.string()] |= Codesigned;
     }
 
     if (Settings::verbose())
@@ -518,7 +517,7 @@ DylibBundler::fixupBinary(PathRef src, PathRef dest, bool isSubDependency)
                   << (isSubDependency ? " dependency " : "")
                   << " for " << src << std::endl;
 
-    m_dep_state[src.string()] |= Done;
+    m_dep_state[dest.string()] |= Done;
 }
 
 void
@@ -541,10 +540,6 @@ DylibBundler::moveAndFixBinaries()
         for(const auto& dep : m_deps)
             fixupBinary(
                 dep.getCanonical(), dep.getInstallPath(), true);
-    }
-
-    for(const auto& file : Settings::srcFiles()) {
-        fixupBinary(file.src, file.out, false);
     }
 }
 

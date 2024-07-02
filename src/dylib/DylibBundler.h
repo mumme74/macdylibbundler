@@ -38,7 +38,7 @@ public:
 
     /// @brief  collect dependencies for file
     /// @param file The file to check
-    void collectDependencies(PathRef file);
+    void collectDependencies(PathRef file, bool isExecutable);
     /// @brief  collect all un collected subDependancies
     void collectSubDependencies();
     /// @brief createDestDir/appbundle and process all files
@@ -62,18 +62,19 @@ public:
     /// @brief Called from scrips. Meant to be called from script
     ///   fix libpath and rpaths in binary and codesign(if enabled) on files
     /// @param files The files to fix
-    Json::VluType fixPathsInBinAndCodesign(const Json::Array& files);
+    Json::VluType fixPathsInBinAndCodesign(const Json::Array* files);
 
 private:
     enum DepState {
       Nothing              = 0x00,
       Collected            = 0x01,
       Copied               = 0x02,
-      InternalPathsChanged = 0x04,
-      Codesigned           = 0x08,
-      Done                 = 0x10
+      LibPathsChanged      = 0x04,
+      RPathsChanged        = 0x08,
+      Codesigned           = 0x10,
+      Done                 = 0x20
     };
-    void changeLibPathsOnFile(PathRef file) const;
+    void changeLibPathsOnFile(PathRef file);
     void collectRpaths(PathRef file);
     void fixRPathsOnFile(PathRef original_file, PathRef file_to_fix);
     void addDependency(PathRef path, PathRef filename);
@@ -82,7 +83,7 @@ private:
     void fixupBinary(PathRef src, PathRef dest, bool iDependency);
 
     std::vector<Dependency> m_deps;
-    std::map<std::string, std::vector<Dependency> > m_deps_per_file;
+    std::map<std::string, std::vector<size_t> > m_deps_per_file;
     std::map<std::string, int> m_dep_state;
     std::map<std::string, Path> m_rpaths_per_file;
     std::map<std::string, Path> m_rpath_to_fullpath;

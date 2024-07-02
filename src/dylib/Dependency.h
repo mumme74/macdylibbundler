@@ -35,7 +35,8 @@ THE SOFTWARE.
 class Dependency
 {
 public:
-    Dependency(PathRef path, PathRef dependent_file);
+    Dependency(
+        PathRef path, PathRef dependent_file, bool isExecutable);
 
     void print() const;
 
@@ -45,6 +46,7 @@ public:
     Path getInnerPath() const;
     std::string getFrameworkName() const;
     bool isFramework() const { return m_framework; }
+    bool isExecutable() const { return m_executable; }
 
     const std::vector<Path>& getSymlinks() const {
         return m_symlinks;
@@ -66,13 +68,14 @@ private:
 
     // initialize function to be able to search many times
     bool findPrefix(PathRef path, PathRef dependent_file);
+    bool isInAppBundle() const;
 
     // origin
     Path m_original_file; // the file as it is in bin/lib
     Path m_canonical_file; // as original_file but with symlinks resolved
     Path m_prefix;
     std::vector<Path> m_symlinks;
-    bool m_framework;
+    bool m_framework, m_executable;
 
     // if some libs are missing prefixes, this will be set to true
     // more stuff will then be necessary to do

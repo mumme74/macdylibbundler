@@ -93,10 +93,14 @@ void installId(
 }
 
 
-Dependency::Dependency(PathRef path, PathRef dependent_file) :
+Dependency::Dependency(
+    PathRef path, PathRef dependent_file,
+    bool isExecutable
+) :
     m_original_file{path}, m_canonical_file{},
     m_prefix{}, m_symlinks{},
     m_framework(path.before(".framework") != path),
+    m_executable{isExecutable},
     m_missing_prefixes{false}
 {
     std::error_code err;
@@ -144,7 +148,9 @@ Dependency::findPrefix(PathRef path, PathRef dependent_file) {
         //check if file is contained in one of the paths
         for(const auto& searchPath : Settings::searchPaths())
         {
-            auto search_path = searchPath / fwName;
+            auto search_path = searchPath;
+            if (!fs::exists(search_path / canonical_name))
+                search_path /= fwName;
             auto path = search_path / canonical_name;
             if (fs::exists(path))
             {
@@ -165,15 +171,23 @@ Dependency::findPrefix(PathRef path, PathRef dependent_file) {
     }
 
     //If the location is still unknown, ask the user for search path
-    if( !Settings::isPrefixIgnored(m_prefix)
-        && (m_prefix.empty() || !fs::exists(getCanonical())))
+    if( !Settings::isPrefixIgnored(m_prefix) &&
+        (m_prefix.empty() ||
+         !fs::exists(m_prefix / getCanonical().filename())))
     {
         std::cerr << "\n/!\\ WARNING : Library " << canonical_name
                   << " has an incomplete name (location unknown)" << std::endl;
         m_missing_prefixes = true;
 
-        Settings::addSearchPath(getUserInputDirForFile(canonical_name));
-        return findPrefix(path, dependent_file);
+        while (true) {
+            auto dir = getUserInputDirForFile(canonical_name);
+            if (fs::exists(dir) && fs::is_directory(dir)) {
+                Settings::addSearchPath(dir);
+                return findPrefix(path, dependent_file);
+            }
+            std::cerr << "\n/!\\ Dir does not exist or is not "
+                    << "a directory.\nTry again!\n";
+        }
     }
 
     return fs::exists(fs::path(m_prefix) / getCanonical());
@@ -201,16 +215,31 @@ Dependency::getFrameworkName() const
     return frmDir.substr(0, frmDir.size()-10);
 }
 
+bool
+Dependency::isInAppBundle() const
+{
+    std::string orig = m_original_file.string(),
+                cont = Settings::appBundleContentsDir().string();
+
+    if (orig.size() > cont.size())
+        return orig.substr(0, cont.size()) == cont;
+
+    return false;
+}
+
 Path
 Dependency::getInstallPath() const
 {
-    if (m_framework) {
+    if (isInAppBundle())
+        return getOriginal();
+    else if (m_framework) {
         auto path = Settings::frameworkDir()
                   / getFrameworkName()
                   + ".framework"
                   / m_canonical_file.after(".framework");
         return path;
-    }
+    } else if (m_executable)
+        return Settings::appBundleExecDir() / getCanonical().filename();
     return Settings::destFolder() / getCanonical().filename();
 }
 
@@ -231,7 +260,7 @@ Dependency::addSymlink(PathRef link)
 {
     // calling std::find on this vector is not near as slow as an extra invocation of install_name_tool
     const auto lnk = link.string();
-    if(std::find(m_symlinks.begin(), m_symlinks.end(), lnk) == m_symlinks.end())
+    if (std::find(m_symlinks.begin(), m_symlinks.end(), lnk) == m_symlinks.end())
         m_symlinks.push_back(Path(link));
 }
 

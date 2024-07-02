@@ -111,7 +111,7 @@ int main (int argc, const char * argv[])
     for(const auto& file : Settings::srcFiles()) {
         std::cout << "* Collecting dependencies for:"
                   << file.src <<" \n";
-        bundler.collectDependencies(file.src);
+        bundler.collectDependencies(file.src, true);
     }
 
     bundler.collectSubDependencies();

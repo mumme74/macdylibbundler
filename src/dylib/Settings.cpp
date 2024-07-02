@@ -311,10 +311,10 @@ bool shouldOnlyRunScripts() {
 }
 
 Path appBundleContentsDir() {
-    return appBundlePath() / "Contents" / "";
+    return appBundlePath() / "Contents";
 }
 Path appBundleExecDir() {
-    return appBundleContentsDir() / "MacOS" / "";
+    return appBundleContentsDir() / "MacOS";
 }
 
 Path plist_path;
