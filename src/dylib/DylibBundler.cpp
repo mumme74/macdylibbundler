@@ -250,8 +250,9 @@ DylibBundler::addDependency(PathRef path, PathRef file)
 
     // we need to check if this library was already added to avoid duplicates
     bool in_deps = false;
-    for (auto& dep : m_deps) {
-        if (dep.mergeIfSameAs(dep)) in_deps = true;
+    for (auto& d : m_deps) {
+        if (dep.mergeIfSameAs(d))
+            in_deps = true;
     }
 
     if (Settings::blacklistedPath(dep.getPrefix())) {
@@ -341,12 +342,14 @@ DylibBundler::collectDependencies(PathRef file, bool isExecutable)
         if (line.find(".framework") != std::string::npos &&
             !Settings::bundleFrameworks())
         {
-            if (Settings::verbose()) std::cout << "  ignore framework: " <<  dep_path << std::endl;
+            if (Settings::verbose())
+                std::cout << "  ignore framework: " <<  dep_path << std::endl;
             continue;
         }
 
         if (Settings::isSystemLibrary(dep_path)) {
-            if (Settings::verbose()) std::cout << "  ignore system: " << dep_path << std::endl;
+            if (Settings::verbose())
+                std::cout << "  ignore system: " << dep_path << std::endl;
             continue;
         }
 
@@ -373,16 +376,21 @@ DylibBundler::collectSubDependencies()
     do {
         dep_amount = m_deps.size();
 
-        for (const auto& dep : m_deps)
+        // can't use range based loop, m_deps might grow
+        for (size_t i = 0; i < m_deps.size(); ++i)
         {
-            auto original_path = dep.getOriginal();
+            auto original_path = m_deps[i].getOriginal();
             Settings::verbose() ?
                 std::cout << "* SubDependencies for: " << original_path << std::endl
               : std::cout << ".";
             fflush(stdout);
-            if (isRpath(original_path))
+            if (isRpath(original_path)) {
                 original_path = searchFilenameInRPaths(
                     original_path, original_path);
+            } else if (!fs::exists(original_path)) {
+                original_path = m_deps[i].getPrefix()
+                              / original_path;
+            }
 
             collectDependencies(original_path, false);
         }
@@ -453,7 +461,9 @@ DylibBundler::fixPathsInBinAndCodesign(const Json::Array* files)
         // copy dependency files if requested by user
         if(Settings::bundleLibs())
         {
-            for(const auto& dep : m_deps) {
+            // can't use range based loop here, m_deps might grow
+            for(size_t i = 0; i < m_deps.size(); ++i) {
+                const auto& dep = m_deps[i];
                 if ((m_dep_state[dep.getInstallPath().string()] & Done) == 0)
                     fixupBinary(
                         dep.getCanonical(),
@@ -537,9 +547,12 @@ DylibBundler::moveAndFixBinaries()
     if(Settings::bundleLibs())
     {
         createDestDir();
-        for(const auto& dep : m_deps)
+        // can't use rangebase loop here, m_deps might grow
+        for(size_t i = 0; i < m_deps.size(); ++i) {
+            const auto& dep = m_deps[i];
             fixupBinary(
                 dep.getCanonical(), dep.getInstallPath(), true);
+        }
     }
 }
 

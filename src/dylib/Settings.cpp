@@ -299,8 +299,11 @@ void setScriptsDir(Path dir)
     _scriptDir = dir;
 }
 /// prevent all appBundle scripts from beeing run
-void preventAppBundleScripts() {
+void preventScripts() {
     scriptsPrevented = true;
+}
+bool shouldPreventScripts() {
+    return scriptsPrevented;
 }
 void setOnlyRunScripts() {
     scriptsOnly = true;
@@ -366,9 +369,14 @@ bool isSystemLibrary(PathRef prefix)
 
 bool isPrefixIgnored(PathRef prefix)
 {
+    std::string sPre = prefix;
     for(const auto& pref : prefixes_to_ignore) {
-        if(pref == prefix)
+        std::string sP = pref;
+        if((sP.size() <= sPre.size()) &&
+           (sP == sPre.substr(0, sP.size()))
+        ) {
             return true;
+        }
     }
 
     return false;

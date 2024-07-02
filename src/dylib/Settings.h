@@ -98,7 +98,8 @@ void setAppBundleScript(Path script);
 /// reference to all app bundle scripts which should run after appBundle is complete
 std::vector<Path>& appBundleScripts();
 /// prevent all appBundle scripts from beeing run
-void preventAppBundleScripts();
+void preventScripts();
+bool shouldPreventScripts();
 /// only run script, nothing else
 void setOnlyRunScripts();
 /// If we should only run scripts
