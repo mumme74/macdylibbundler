@@ -119,12 +119,7 @@ public:
     path::operator+=(__x);
     return *this;
   }
-  extended_path& operator+=(basic_string_view<value_type> __x)
-  {
-    path::operator+=(__x);
-    return *this;
-  }
-    /// Append one path to another
+  /// Append one path to another
   friend extended_path operator/(const extended_path& __lhs, const path& __rhs)
   {
     extended_path epath{__lhs};

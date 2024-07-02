@@ -142,11 +142,13 @@ extended_path::end_wo_sep() const
 extended_path
 extended_path::end_name() const
 {
-  iterator last;
+  iterator last = end();
   for (auto it = begin(); it != end(); ++it) {
     last = it;
   }
-  return static_cast<extended_path>(*last);
+  if (last != end())
+    return static_cast<extended_path>(*last);
+  return extended_path{};
 }
 
 } // namespace std::filesystem
