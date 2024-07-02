@@ -177,6 +177,7 @@ class DeployQt():
           self.hasQtLibs = True
 
     if self.settings['create_app_bundle'] and self.hasQtLibs:
+      #self.settings['verbose'] = True
       self.init()
       self.createQtConf()
       self.deployPlugins()
@@ -236,10 +237,12 @@ class DeployQt():
       self.qmlDirs = environ['QML_DIRS'].split(':')
     else:
       self.qmlDirs = []
-      for fileToFix in self.deps['files_to_fix']:
+      lookIn = [self.deps["app_path"]]
+      if self.deps["working_dir"] != self.deps["app_path"]:
+        lookIn.append(self.deps["working_dir"])
+      for base in lookIn:
         for d in ["./", "qml", "resources", "resources/qml"]:
-          searchIn = path.realpath(
-            path.join(path.dirname(fileToFix), d))
+          searchIn = path.realpath(path.join(base, d))
           if path.isdir(searchIn):
             for e in listdir(searchIn):
               if (e.endswith('.qml') and

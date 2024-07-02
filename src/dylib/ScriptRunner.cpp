@@ -200,9 +200,7 @@ bool parentLoop(Pipes& pipes) {
                 auto str = res->serialize().str();
                 if (!parentWrite(out.file(), str))
                     return false;
-            }
-
-            if (!parentValueResponse(out.file(), std::move(res)))
+            } else if (!parentValueResponse(out.file(), std::move(res)))
                 return false;
         } catch (Json::Exception& e) {
             std::cerr << e.what() << "\n";

@@ -197,7 +197,9 @@ DylibBundler::searchFilenameInRPaths(
 
         // let user tell the path to look in
         if (fullpath.empty()) {
-            std::cerr << "\n/!\\ WARNING : can't get path for '" << rpath_file << "'\n";
+            std::cerr << "\n/!\\ WARNING : can't get path for '"
+                      << rpath_file << "'\n"
+                      << "Consider adding dir to search path as a switch, ie: -s=../dir1 -s=dir2/\n";
             auto dir = getUserInputDirForFile(suffix);
             fullpath = std::string(dir) + suffix;
             std::error_code err;
@@ -413,6 +415,14 @@ DylibBundler::toJson(std::string_view srcFile) const
     using namespace Json;
     Array srcFiles;
 
+    std::error_code err;
+    auto cwd = fs::current_path(err);
+    auto appDir = fs::canonical(
+        fs::relative(
+            Settings::srcFiles()[0].src.parent_path() /"", cwd, err),
+        err);
+    if (appDir.empty()) appDir = cwd;
+
     Object src_files{};
     // find out which src files
     for (const auto& pair : m_deps_per_file) {
@@ -426,6 +436,8 @@ DylibBundler::toJson(std::string_view srcFile) const
     }
 
     auto root = std::make_unique<Object>(ObjInitializer{
+        {"working_dir", String(cwd)},
+        {"app_path", String(appDir)},
         {"files_to_fix", std::move(srcFiles)},
         {"src_files", src_files}
     });

@@ -136,6 +136,11 @@ Dependency::Dependency(
 // a separate method to be able to recursively find prefix
 bool
 Dependency::findPrefix(PathRef path, PathRef dependent_file) {
+    if (isInAppBundle() && fs::exists(m_original_file)) {
+        m_prefix = m_original_file.parent_path();
+        return true;
+    }
+
     const auto canonical_name = m_canonical_file.end_name();
     // check if the lib is in a known location
     auto pat = fs::path(m_prefix) / canonical_name;
@@ -189,6 +194,10 @@ Dependency::findPrefix(PathRef path, PathRef dependent_file) {
                     << "a directory.\nTry again!\n";
         }
     }
+
+    if (m_framework)
+        return fs::exists(Path(m_prefix) /
+            m_canonical_file.after(".framework"));
 
     return fs::exists(fs::path(m_prefix) / getCanonical());
 }
@@ -269,7 +278,7 @@ Dependency::addSymlink(PathRef link)
 bool
 Dependency::mergeIfSameAs(Dependency& dep2)
 {
-    if(dep2.getOriginal().filename() == getOriginal().filename()) {
+    if(dep2.getCanonical() == getCanonical()) {
         for(auto& link : m_symlinks) {
             dep2.addSymlink(link);
         }
@@ -363,7 +372,7 @@ Dependency::toJson() const
         {"prefix", String{m_prefix}},
         {"symlinks", links},
         {"is_framework", Bool(m_framework)},
-        {"framework_name", String{getFrameworkName()}}
+        {"framework_name", String{getFrameworkName()}},
       }
     );
     return obj;
