@@ -297,9 +297,7 @@ class DeployQt():
       return False
 
   def postProcess(self)->None:
-    cmd = ["post_move_on_dylibs", DeployQt.dylibs]
-    print(json.dumps(cmd, indent=2))
-    return
+    cmd = {"fixup_binaries": DeployQt.dylibs}
     res = json.loads(question(json.dumps(cmd)))
     if "error" in res and res['error']:
       print(f"*Failed to run strip on {dst}, error:{res['error']}")
