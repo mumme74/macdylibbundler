@@ -75,6 +75,16 @@ private:
   static bool defaultVerbosity;
 };
 
+class OTool : public Base
+{
+public:
+  static void initDefaults(std::string_view cmd, bool verbose);
+  OTool();
+  OTool(std::string_view cmd, bool verbose);
+
+
+};
+
 } // namespace Tools
 
 #endif

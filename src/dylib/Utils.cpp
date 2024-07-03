@@ -133,23 +133,6 @@ int systemp(std::string_view cmd)
     return system(cmd.data());
 }
 
-void changeInstallName(
-    PathRef binary_path,
-    PathRef old_path,
-    PathRef new_path
-) {
-    std::stringstream ss;
-    ss << Settings::installNameToolCmd() + " -change \""
-       << old_path << "\" \"" << new_path << "\" \""
-       << binary_path << "\"";
-
-    if( systemp(ss.str()) != 0 ) {
-        ss << "\n\nError: An error occurred while trying to fix "
-           << "dependencies of " << binary_path << "\n";
-        exitMsg(ss.str());
-    }
-}
-
 Path getUserInputDirForFile(PathRef filename)
 {
     for(const auto& searchPath : Settings::searchPaths())

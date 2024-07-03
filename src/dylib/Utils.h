@@ -45,8 +45,6 @@ std::string system_get_output(std::string_view cmd);
 
 /// like 'system', runs a command on the system shell, but also prints the command to stdout.
 int systemp(std::string_view cmd);
-void changeInstallName(
-  PathRef binary_path,PathRef old_path, PathRef new_path);
 Path getUserInputDirForFile(PathRef file);
 
 /// try to create a folder

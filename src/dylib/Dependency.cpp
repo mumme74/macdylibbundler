@@ -323,20 +323,21 @@ void
 Dependency::fixFileThatDependsOnMe(PathRef file) const
 {
     // for main lib file
-    changeInstallName(file, m_original_file, getInnerPath());
+    Tools::InstallName installTool;
+    installTool.change(m_original_file, getInnerPath(), file);
     // for symlinks
     for(const auto& link : m_symlinks) {
-        changeInstallName(file, link, getInnerPath());
+        installTool.change(link, getInnerPath(), file);
     }
 
     // FIXME - hackish
     if(m_missing_prefixes)
     {
         // for main lib file
-        changeInstallName(file, m_original_file, getInnerPath());
+        installTool.change(m_original_file, getInnerPath(), file);
         // for symlinks
         for(const auto& link : m_symlinks) {
-            changeInstallName(file, link, getInnerPath());
+            installTool.change(link, getInnerPath(), file);
         }
     }
 }
