@@ -464,9 +464,11 @@ DylibBundler::fixPathsInBinAndCodesign(const Json::Array* files)
         std::cout << "\n Postprocess requested by a script: " << std::endl;
 
         // print info to user
-        for(const auto& dep : m_deps) {
-            if ((m_dep_state[dep.getInstallPath().string()] & Done) == 0)
-                dep.print();
+        if (Settings::verbose()) {
+            for(const auto& dep : m_deps) {
+                if ((m_dep_state[dep.getInstallPath().string()] & Done) == 0)
+                    dep.print();
+            }
         }
         std::cout << std::endl;
 

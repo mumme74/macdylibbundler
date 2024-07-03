@@ -121,7 +121,7 @@ class QmlFile():
     self.imports = []
     self.filePath = filePath
     self.isModule = isModule
-    print(f"new qml file:{filePath} module:{isModule}")
+    #print(f"new qml file:{filePath} module:{isModule}")
     if isModule:
       self.modulePath = ""
       return
@@ -167,8 +167,8 @@ class DeployQt():
       self.printHelp()
     self.settings = json.loads(question("all_settings"))
     self.deps = json.loads(question("dylib_info"))
-    print(json.dumps(self.settings, indent=2))
-    print(json.dumps(self.deps, indent=2))
+    #print(json.dumps(self.settings, indent=2))
+    #print(json.dumps(self.deps, indent=2))
 
     self.hasQtLibs = False
     for arr in self.deps['src_files'].values():
@@ -465,7 +465,7 @@ class DeployQt():
         if path.isdir(path.join(srcDir, entry)):
           deployDir(path.join(srcDir, entry), path.join(destDir, entry))
           continue
-        print(name, entry)
+        #print(name, entry)
         src = path.join(srcDir, entry)
         to = path.join(path.join(self.qmlDestDir, destDir), entry)
         if entry.endswith('.dylib'):
@@ -495,7 +495,6 @@ class DeployQt():
             makedirs(path.dirname(to))
           self.copyFile(src, to, False)
 
-    print("module", qmlInst.modulePath)
 
     deployDir(qmlInst.modulePath, path.basename(qmlInst.modulePath))
 

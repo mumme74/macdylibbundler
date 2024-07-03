@@ -118,7 +118,7 @@ bool scriptLogic(
     makeDup(pipes.scriptIn(), STDIN_FILENO);
     makeDup(pipes.scriptOut(), STDOUT_FILENO);
 
-    fprintf(pipes.stdout, "Before execvpe\n");
+    //fprintf(pipes.stdout, "Before execvpe\n");
     int res = execvpe(script.data(), argv, environ);
     // If we get here command failed.
     // Should be replaced by script process.
@@ -130,16 +130,18 @@ bool scriptLogic(
 
 bool parentRead(FILE *in, std::string& buf) {
     bigendian_t sz{0u};
-    if (fread(sz.u32arr, 1, 4, in) != 4) {
-        if (errno != EINVAL)
+    size_t n = 0;
+    if ((n = fread(sz.u32arr, 1, 4, in)) != 4) {
+        if (n != 0)
             std::cerr << "Failed to read size from script\n";
         return false;
     }
     auto siz = sz.u32native();
-    std::cout << "Read " << siz << " bytes from script. << \n";
+    //std::cout << "Read " << siz << " bytes from script. << \n";
     auto b = std::make_unique<char[]>(siz+1);
-    if (fread(b.get(), 1, siz, in) != siz) {
-        std::cerr << "Failed to read " << siz << " bytes\n";
+    if ((n = fread(b.get(), 1, siz, in)) != siz) {
+        if (n != 0)
+            std::cerr << "Failed to read " << siz << " bytes\n";
         return false;
     }
     buf = b.get();
@@ -185,7 +187,7 @@ bool parentLoop(Pipes& pipes) {
             try {
                 jsn = Json::parse(input);
                 resInJson = true;
-                std::cout << jsn->serialize(2).str() << "\n";
+                //std::cout << jsn->serialize(2).str() << "\n";
             } catch (Json::Exception& e) {
                 std::cerr << e.what() << "\n";
                 return false;
@@ -430,7 +432,6 @@ const ProtocolItem protocol[] {
         "add_search_paths",
         "Add search paths to parents process bore it tries to fixup_binaries.",
         [](const char* cmd, Json::Object* obj, Json::VluBase* args) {
-            auto dylib = DylibBundler::instance();
             if (!args->isArray()) {
                 obj->set(cmd, Json::Bool(false));
                 obj->set("error", Json::String("Expected an array"));
