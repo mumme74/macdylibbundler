@@ -165,6 +165,12 @@ Path getUserInputDirForFile(PathRef filename)
         }
     }
 
+    if (!Settings::shouldAskUser()) {
+        std::stringstream msg;
+        msg << "/!\\ ERROR file " << filename << " was'nt found.\n";
+        exitMsg(msg.str());
+    }
+
     while (true)
     {
         std::cout << "Please specify the directory where this "

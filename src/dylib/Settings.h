@@ -117,6 +117,9 @@ PathRef scriptDir();
 /// Path to Info.plist file
 PathRef infoPlist();
 bool setInfoPlist(std::string_view plist);
+/// Prevent us from asking user for input
+bool shouldAskUser();
+void preventAskUser();
 
 void addFileToFix(std::string_view path);
 std::vector<Files> srcFiles();

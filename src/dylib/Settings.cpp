@@ -34,7 +34,7 @@ THE SOFTWARE.
 #include "Common.h"
 #include "Utils.h"
 
-namespace fs= std::filesystem;
+namespace fs = std::filesystem;
 
 //initialize the dylib search paths
 void initSearchPaths(){
@@ -329,6 +329,10 @@ bool setInfoPlist(std::string_view plist) {
     }
     return false;
 }
+
+bool mayAskUser = true;
+bool shouldAskUser() { return mayAskUser; }
+void preventAskUser() { mayAskUser = false; }
 
 Path inside_path;
 Path inside_lib_path(){

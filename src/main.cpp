@@ -81,6 +81,7 @@ ArgParser args {
   {nullptr, "otool-path","give the path to otool or llvm-otool, useful when tools not in path", Settings::setOToolPath,ArgItem::ReqVluString},
   {nullptr, "install-name-tool-path","absolute path to install_name_tool, useful when not in path",Settings::setInstallNameToolPath,ArgItem::ReqVluString},
   {"cs","codesign","path to codesigning binary, might be zsign for example",Settings::setCodeSign,ArgItem::ReqVluString},
+  {nullptr,"no-interactive","Prevent dylibbundler from asking user for inputs when it is lost. Useful when running in a bash script", Settings::preventAskUser},
   {"v","verbose","verbose mode",Settings::setVerbose},
   {"h","help","Show help",showHelp}
 };
