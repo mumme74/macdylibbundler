@@ -10,6 +10,7 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
+
 # json lib
 add_executable(jsontest test_Json.cpp)
 target_link_libraries(jsontest gtest_main json)
@@ -30,10 +31,11 @@ add_test(NAME argparsertest COMMAND $<TARGET_FILE:argparsertest>
 
 # common lib
 add_executable(commontest test_Common.cpp)
-target_link_libraries(commontest gtest_main common)
+target_link_libraries(commontest gtest_main gmock_main common)
 target_include_directories(
   commontest PUBLIC
     ${CMAKE_SOURCE_DIR}/src/common
+    ${GTEST_DIR}/googlemock/include
 )
 add_test(NAME commontest COMMAND $<TARGET_FILE:commontest>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

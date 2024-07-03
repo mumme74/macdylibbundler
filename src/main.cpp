@@ -33,6 +33,7 @@ THE SOFTWARE.
 #include "DylibBundler.h"
 #include "ScriptRunner.h"
 #include "ArgParser.h"
+#include "Tools.h"
 
 /*
  TODO
@@ -99,6 +100,10 @@ int main (int argc, const char * argv[])
 {
     Settings::init(argc, argv);
     args.parse(argc, argv);
+
+    Tools::InstallName::initDefaults(
+      Settings::installNameToolCmd(),
+      Settings::verbose());
 
     auto amount = Settings::srcFiles().size();
     if(!Settings::bundleLibs() && amount < 1)

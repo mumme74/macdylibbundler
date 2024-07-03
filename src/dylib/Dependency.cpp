@@ -36,6 +36,7 @@ THE SOFTWARE.
 #include "Utils.h"
 #include "Settings.h"
 #include "DylibBundler.h"
+#include "Tools.h"
 
 #include <stdlib.h>
 #include <vector>
@@ -76,22 +77,6 @@ void cleanupFramwork(
     // cleanup root
     clean(frameworkPath, keep);
 }
-
-void installId(
-    std::filesystem::path innerPath,
-    std::filesystem::path installPath
-){
-    // Fix the lib's inner name
-    std::stringstream ss;
-    ss << Settings::installNameToolCmd() + " -id \""
-       << innerPath << "\" \"" << installPath << "\"";
-    if( systemp(ss.str()) != 0 ) {
-        ss << "\n\nError : An error occurred while trying"
-           << " to change identity of library " << installPath;
-        exitMsg(ss.str());
-    }
-}
-
 
 Dependency::Dependency(
     PathRef path, PathRef dependent_file,
@@ -330,7 +315,8 @@ Dependency::copyMyself() const
             std::vector<std::string>{getCanonical().filename()});
 
     // Fix the lib's inner name
-    installId(getInnerPath(), getInstallPath());
+    Tools::InstallName installTool;
+    installTool.id(getInnerPath(), getInstallPath());
 }
 
 void

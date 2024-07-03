@@ -42,6 +42,7 @@ THE SOFTWARE.
 #include "Utils.h"
 #include "Settings.h"
 #include "Dependency.h"
+#include "Tools.h"
 
 namespace fs = std::filesystem;
 
@@ -230,17 +231,10 @@ DylibBundler::fixRPathsOnFile(
         }
     }
 
+    Tools::InstallName installTool;
     for (const auto& rpath : rpaths_to_fix) {
-        std::stringstream cmd;
-        cmd << Settings::installNameToolCmd() << " -rpath \""
-            << rpath << "\" \"" << Settings::inside_lib_path()
-            << "\" \"" << file_to_fix << "\"";
-        if ( systemp(cmd.str()) != 0)
-        {
-            std::cerr << "\n\nError : An error occurred while "
-                      << "trying to fix dependencies of "
-                      << file_to_fix << std::endl;
-        }
+        installTool.rpath(
+            rpath, Settings::inside_lib_path(), file_to_fix);
     }
     m_dep_state[file_to_fix] |= RPathsChanged;
 }
