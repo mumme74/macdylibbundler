@@ -34,24 +34,29 @@ namespace Tools {
 class Base
 {
 public:
-  Base(std::string_view name, bool verbose);
+  Base(std::string_view cmd, bool verbose);
   virtual ~Base();
 
-  virtual std::string_view name() const { return m_name; }
+  virtual std::string_view cmd() const { return m_cmd; }
   bool verbose() const { return m_verbose; }
 
   /// replace stdlib system fun with this
   /// for testing purpose
   void testingSystemFn(std::function<int (const char*)> systemFn);
+  void testingPopenFn(
+    std::function<FILE* (const char*, const char*)> popenFn,
+    std::function<int (FILE*)> pcloseFn);
 
 protected:
   int systemPrint(std::string_view cmd) const;
+  std::stringstream runAndGetOutput(
+    std::string_view cmd, int& exitCode) const;
 
   bool m_verbose;
-
-  std::string m_name;
-
+  std::string m_cmd;
   std::function<int (const char*)> m_systemFn;
+  std::function<FILE* (const char*, const char*)> m_popenFn;
+  std::function<int (FILE*)> m_pcloseFn;
 };
 
 class InstallName : public Base
@@ -82,7 +87,12 @@ public:
   OTool();
   OTool(std::string_view cmd, bool verbose);
 
+  bool scanBinary(PathRef bin);
+  std::vector<Path> rpaths, dependencies;
 
+private:
+  static std::string defaultCmd;
+  static bool defaultVerbosity;
 };
 
 } // namespace Tools

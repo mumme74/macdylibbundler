@@ -1,0 +1,449 @@
+../app_samples/classphoto:
+Mach header
+      magic cputype cpusubtype  caps    filetype ncmds sizeofcmds      flags
+ 0xfeedfacf 16777223          3  0x00           2    32       3240 0x00218085
+Load command 0
+      cmd LC_SEGMENT_64
+  cmdsize 72
+  segname __PAGEZERO
+   vmaddr 0x0000000000000000
+   vmsize 0x0000000100000000
+  fileoff 0
+ filesize 0
+  maxprot 0x00000000
+ initprot 0x00000000
+   nsects 0
+    flags 0x0
+Load command 1
+      cmd LC_SEGMENT_64
+  cmdsize 712
+  segname __TEXT
+   vmaddr 0x0000000100000000
+   vmsize 0x0000000000068000
+  fileoff 0
+ filesize 425984
+  maxprot 0x00000005
+ initprot 0x00000005
+   nsects 8
+    flags 0x0
+Section
+  sectname __text
+   segname __TEXT
+      addr 0x00000001000118b0
+      size 0x000000000004816b
+    offset 71856
+     align 2^4 (16)
+    reloff 0
+    nreloc 0
+     flags 0x80000400
+ reserved1 0
+ reserved2 0
+Section
+  sectname __stubs
+   segname __TEXT
+      addr 0x0000000100059a1c
+      size 0x0000000000001dd6
+    offset 367132
+     align 2^1 (2)
+    reloff 0
+    nreloc 0
+     flags 0x80000408
+ reserved1 0 (index into indirect symbol table)
+ reserved2 6 (size of stubs)
+Section
+  sectname __stub_helper
+   segname __TEXT
+      addr 0x000000010005b7f4
+      size 0x00000000000014c4
+    offset 374772
+     align 2^2 (4)
+    reloff 0
+    nreloc 0
+     flags 0x80000400
+ reserved1 0
+ reserved2 0
+Section
+  sectname __gcc_except_tab
+   segname __TEXT
+      addr 0x000000010005ccb8
+      size 0x00000000000028d0
+    offset 380088
+     align 2^2 (4)
+    reloff 0
+    nreloc 0
+     flags 0x00000000
+ reserved1 0
+ reserved2 0
+Section
+  sectname __const
+   segname __TEXT
+      addr 0x000000010005f590
+      size 0x0000000000006907
+    offset 390544
+     align 2^4 (16)
+    reloff 0
+    nreloc 0
+     flags 0x00000000
+ reserved1 0
+ reserved2 0
+Section
+  sectname __cstring
+   segname __TEXT
+      addr 0x0000000100065e97
+      size 0x00000000000011ea
+    offset 417431
+     align 2^0 (1)
+    reloff 0
+    nreloc 0
+     flags 0x00000002
+ reserved1 0
+ reserved2 0
+Section
+  sectname __ustring
+   segname __TEXT
+      addr 0x0000000100067082
+      size 0x0000000000000032
+    offset 422018
+     align 2^1 (2)
+    reloff 0
+    nreloc 0
+     flags 0x00000000
+ reserved1 0
+ reserved2 0
+Section
+  sectname __unwind_info
+   segname __TEXT
+      addr 0x00000001000670b4
+      size 0x0000000000000f4c
+    offset 422068
+     align 2^2 (4)
+    reloff 0
+    nreloc 0
+     flags 0x00000000
+ reserved1 0
+ reserved2 0
+Load command 2
+      cmd LC_SEGMENT_64
+  cmdsize 312
+  segname __DATA_CONST
+   vmaddr 0x0000000100068000
+   vmsize 0x0000000000003000
+  fileoff 425984
+ filesize 12288
+  maxprot 0x00000003
+ initprot 0x00000003
+   nsects 3
+    flags 0x10
+Section
+  sectname __got
+   segname __DATA_CONST
+      addr 0x0000000100068000
+      size 0x0000000000000118
+    offset 425984
+     align 2^3 (8)
+    reloff 0
+    nreloc 0
+     flags 0x00000006
+ reserved1 1273 (index into indirect symbol table)
+ reserved2 0
+Section
+  sectname __mod_init_func
+   segname __DATA_CONST
+      addr 0x0000000100068118
+      size 0x0000000000000018
+    offset 426264
+     align 2^3 (8)
+    reloff 0
+    nreloc 0
+     flags 0x00000009
+ reserved1 0
+ reserved2 0
+Section
+  sectname __const
+   segname __DATA_CONST
+      addr 0x0000000100068130
+      size 0x0000000000001f88
+    offset 426288
+     align 2^4 (16)
+    reloff 0
+    nreloc 0
+     flags 0x00000000
+ reserved1 0
+ reserved2 0
+Load command 3
+      cmd LC_SEGMENT_64
+  cmdsize 472
+  segname __DATA
+   vmaddr 0x000000010006b000
+   vmsize 0x0000000000003000
+  fileoff 438272
+ filesize 12288
+  maxprot 0x00000003
+ initprot 0x00000003
+   nsects 5
+    flags 0x0
+Section
+  sectname __la_symbol_ptr
+   segname __DATA
+      addr 0x000000010006b000
+      size 0x00000000000027c8
+    offset 438272
+     align 2^3 (8)
+    reloff 0
+    nreloc 0
+     flags 0x00000007
+ reserved1 1308 (index into indirect symbol table)
+ reserved2 0
+Section
+  sectname .qtversion
+   segname __DATA
+      addr 0x000000010006d7c8
+      size 0x0000000000000010
+    offset 448456
+     align 2^3 (8)
+    reloff 0
+    nreloc 0
+     flags 0x00000000
+ reserved1 0
+ reserved2 0
+Section
+  sectname __data
+   segname __DATA
+      addr 0x000000010006d7d8
+      size 0x0000000000000698
+    offset 448472
+     align 2^3 (8)
+    reloff 0
+    nreloc 0
+     flags 0x00000000
+ reserved1 0
+ reserved2 0
+Section
+  sectname __bss
+   segname __DATA
+      addr 0x000000010006de70
+      size 0x0000000000000051
+    offset 0
+     align 2^3 (8)
+    reloff 0
+    nreloc 0
+     flags 0x00000001
+ reserved1 0
+ reserved2 0
+Section
+  sectname __common
+   segname __DATA
+      addr 0x000000010006dec8
+      size 0x0000000000000018
+    offset 0
+     align 2^3 (8)
+    reloff 0
+    nreloc 0
+     flags 0x00000001
+ reserved1 0
+ reserved2 0
+Load command 4
+      cmd LC_SEGMENT_64
+  cmdsize 72
+  segname __LINKEDIT
+   vmaddr 0x000000010006e000
+   vmsize 0x0000000000074000
+  fileoff 450560
+ filesize 473760
+  maxprot 0x00000001
+ initprot 0x00000001
+   nsects 0
+    flags 0x0
+Load command 5
+            cmd LC_DYLD_INFO_ONLY
+        cmdsize 48
+     rebase_off 450560
+    rebase_size 376
+       bind_off 450936
+      bind_size 16904
+  weak_bind_off 467840
+ weak_bind_size 58960
+  lazy_bind_off 526800
+ lazy_bind_size 23088
+     export_off 549888
+    export_size 49640
+Load command 6
+     cmd LC_SYMTAB
+ cmdsize 24
+  symoff 602368
+   nsyms 3697
+  stroff 671848
+ strsize 252472
+Load command 7
+            cmd LC_DYSYMTAB
+        cmdsize 80
+      ilocalsym 0
+      nlocalsym 1757
+     iextdefsym 1757
+     nextdefsym 1146
+      iundefsym 2903
+      nundefsym 794
+         tocoff 0
+           ntoc 0
+      modtaboff 0
+        nmodtab 0
+   extrefsymoff 0
+    nextrefsyms 0
+ indirectsymoff 661520
+  nindirectsyms 2581
+      extreloff 0
+        nextrel 0
+      locreloff 0
+        nlocrel 0
+Load command 8
+          cmd LC_LOAD_DYLINKER
+      cmdsize 32
+         name /usr/lib/dyld (offset 12)
+Load command 9
+     cmd LC_UUID
+ cmdsize 24
+    uuid 59D3BEB9-0E5E-36A0-BB12-62C87D61B021
+Load command 10
+       cmd LC_BUILD_VERSION
+   cmdsize 32
+  platform macos
+       sdk 13.3
+     minos 11.0
+    ntools 1
+      tool ld
+   version 711.0
+Load command 11
+      cmd LC_SOURCE_VERSION
+  cmdsize 16
+  version 0.0
+Load command 12
+       cmd LC_MAIN
+   cmdsize 24
+  entryoff 89712
+ stacksize 0
+Load command 13
+          cmd LC_LOAD_DYLIB
+      cmdsize 64
+         name @rpath/QtXml.framework/Versions/A/QtXml (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 6.5.2
+compatibility version 6.0.0
+Load command 14
+          cmd LC_LOAD_DYLIB
+      cmdsize 88
+         name @rpath/QtPrintSupport.framework/Versions/A/QtPrintSupport (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 6.5.2
+compatibility version 6.0.0
+Load command 15
+          cmd LC_LOAD_DYLIB
+      cmdsize 72
+         name @rpath/QtWidgets.framework/Versions/A/QtWidgets (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 6.5.2
+compatibility version 6.0.0
+Load command 16
+          cmd LC_LOAD_DYLIB
+      cmdsize 64
+         name @rpath/QtGui.framework/Versions/A/QtGui (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 6.5.2
+compatibility version 6.0.0
+Load command 17
+          cmd LC_LOAD_DYLIB
+      cmdsize 88
+         name /System/Library/Frameworks/OpenGL.framework/Versions/A/OpenGL (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1.0.0
+compatibility version 1.0.0
+Load command 18
+          cmd LC_LOAD_DYLIB
+      cmdsize 80
+         name /System/Library/Frameworks/AGL.framework/Versions/A/AGL (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1.0.0
+compatibility version 1.0.0
+Load command 19
+          cmd LC_LOAD_DYLIB
+      cmdsize 88
+         name /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 2299.50.120
+compatibility version 45.0.0
+Load command 20
+          cmd LC_LOAD_DYLIB
+      cmdsize 88
+         name /System/Library/Frameworks/ImageIO.framework/Versions/A/ImageIO (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1.0.0
+compatibility version 1.0.0
+Load command 21
+          cmd LC_LOAD_DYLIB
+      cmdsize 88
+         name /System/Library/Frameworks/Metal.framework/Versions/A/Metal (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 306.5.16
+compatibility version 1.0.0
+Load command 22
+          cmd LC_LOAD_DYLIB
+      cmdsize 72
+         name @rpath/QtCore.framework/Versions/A/QtCore (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 6.5.2
+compatibility version 6.0.0
+Load command 23
+          cmd LC_LOAD_DYLIB
+      cmdsize 88
+         name /System/Library/Frameworks/IOKit.framework/Versions/A/IOKit (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 275.0.0
+compatibility version 1.0.0
+Load command 24
+          cmd LC_LOAD_DYLIB
+      cmdsize 104
+         name /System/Library/Frameworks/DiskArbitration.framework/Versions/A/DiskArbitration (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1.0.0
+compatibility version 1.0.0
+Load command 25
+          cmd LC_LOAD_DYLIB
+      cmdsize 112
+         name /System/Library/Frameworks/ApplicationServices.framework/Versions/A/ApplicationServices (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 61.0.0
+compatibility version 1.0.0
+Load command 26
+          cmd LC_LOAD_DYLIB
+      cmdsize 56
+         name /usr/lib/libcups.2.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 2.14.0
+compatibility version 2.0.0
+Load command 27
+          cmd LC_LOAD_DYLIB
+      cmdsize 48
+         name /usr/lib/libc++.1.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1500.65.0
+compatibility version 1.0.0
+Load command 28
+          cmd LC_LOAD_DYLIB
+      cmdsize 56
+         name /usr/lib/libSystem.B.dylib (offset 24)
+   time stamp 2 Thu Jan  1 01:00:02 1970
+      current version 1319.100.3
+compatibility version 1.0.0
+Load command 29
+          cmd LC_RPATH
+      cmdsize 32
+         path /x86_64/usr/qt6/lib (offset 12)
+Load command 30
+      cmd LC_FUNCTION_STARTS
+  cmdsize 16
+  dataoff 599528
+ datasize 2744
+Load command 31
+      cmd LC_DATA_IN_CODE
+  cmdsize 16
+  dataoff 602272
+ datasize 96

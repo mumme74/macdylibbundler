@@ -75,17 +75,15 @@ private:
       Done                 = 0x20
     };
     void changeLibPathsOnFile(PathRef file);
-    void collectRpaths(PathRef file);
     void fixRPathsOnFile(PathRef original_file, PathRef file_to_fix);
     void addDependency(PathRef path, PathRef filename);
-    void collectDep(PathRef file, std::vector<std::string> &lines);
     void createDestDir() const;
     void fixupBinary(PathRef src, PathRef dest, bool iDependency);
 
     std::vector<Dependency> m_deps;
     std::map<std::string, std::vector<size_t> > m_deps_per_file;
     std::map<std::string, int> m_dep_state;
-    std::map<std::string, Path> m_rpaths_per_file;
+    std::map<std::string, std::vector<Path>> m_rpaths_per_file;
     std::map<std::string, Path> m_rpath_to_fullpath;
     Path m_currentFile;
     static DylibBundler *s_instance;

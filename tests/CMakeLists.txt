@@ -40,6 +40,13 @@ target_include_directories(
 add_test(NAME commontest COMMAND $<TARGET_FILE:commontest>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_custom_command(
+  TARGET commontest PRE_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+      ${CMAKE_SOURCE_DIR}/tests/testdata
+      ${CMAKE_BINARY_DIR}/tests/testdata
+)
+
 # dylib
 add_executable(dylibtest test_Dylib.cpp)
 target_link_libraries(dylibtest gtest_main dylib)

@@ -23,17 +23,28 @@ THE SOFTWARE.
 */
 
 #include <iostream>
+#include <stdlib.h>
+#include <filesystem>
+#include <regex>
+#if defined(_WIN32) && !defined(popen)
+# define popen = _popen;
+# define pclose = _pclose;
+#endif
 #include "Tools.h"
 #include "Common.h"
 
 using namespace Tools;
+namespace fs = std::filesystem;
 
 
 // --------------------------------------------------
 
 Base::Base(std::string_view name, bool verbose)
   : m_verbose{verbose}
-  , m_name{name.data()}
+  , m_cmd{name.data()}
+  , m_systemFn{system}
+  , m_popenFn{popen}
+  , m_pcloseFn{pclose}
 {}
 
 Base::~Base()
@@ -47,10 +58,57 @@ Base::systemPrint(std::string_view cmd) const
     return m_systemFn(cmd.data());
 }
 
+std::stringstream
+Base::runAndGetOutput(
+  std::string_view cmd, int& exitCode
+) const {
+  std::stringstream ss;
+
+  if (m_verbose)
+      std::cout << "    " << cmd << std::endl;
+
+  FILE* fp = m_popenFn(cmd.data(), "r");
+  if (fp == nullptr){ //|| errno == ECHILD) {
+    ss << "*Failed to run popen(..) using " << cmd << "\n";
+    exitMsg(ss.str());
+  }
+
+  char buf[2048] = {0};
+  size_t n, read =0;
+  while ((n = fread(buf, 1, sizeof(buf)-1, fp)) != 0) {
+    buf[n] = 0;
+    read += n;
+    ss << buf;
+  }
+
+  auto end = feof(fp);
+  exitCode = m_pcloseFn(fp);
+
+  if (end == 0) {
+    std::cout << ss.str() << "\n";
+
+    std::stringstream msg;
+    msg << "*Failed to read all data from popen"
+        << " using " << cmd << "\n";
+    exitMsg(msg.str());
+  }
+
+  return ss;
+}
+
 void
 Base::testingSystemFn(std::function<int (const char*)> systemFn)
 {
   m_systemFn = systemFn;
+}
+
+void
+Base::testingPopenFn(
+  std::function<FILE* (const char*, const char*)> popenFn,
+  std::function<int (FILE*)> pcloseFn
+) {
+  m_popenFn = popenFn;
+  m_pcloseFn = pcloseFn;
 }
 
 // ---------------------------------------------------
@@ -79,7 +137,7 @@ void
 InstallName::add_rpath(PathRef rpath, PathRef bin) const
 {
     std::stringstream ss;
-    ss << m_name << " -add_rpath \""<< rpath << "\" "
+    ss << m_cmd << " -add_rpath \""<< rpath << "\" "
        << "\"" << bin << "\"";
 
     if(systemPrint(ss.str()) != 0) {
@@ -94,7 +152,7 @@ void
 InstallName::delete_rpath(PathRef rpath, PathRef bin) const
 {
     std::stringstream ss;
-    ss << m_name << " -delete_rpath \""<< rpath << "\" "
+    ss << m_cmd << " -delete_rpath \""<< rpath << "\" "
        << "\"" << bin << "\"";
 
     if(systemPrint(ss.str()) != 0) {
@@ -111,7 +169,7 @@ InstallName::change(
   PathRef oldPath, PathRef newPath, PathRef bin
 ) const {
     std::stringstream ss;
-    ss << m_name << " -change \""
+    ss << m_cmd << " -change \""
        << oldPath << "\" \"" << newPath << "\" \""
        << bin << "\"";
 
@@ -128,7 +186,7 @@ void
 InstallName::id(PathRef id, PathRef bin) const
 {
     std::stringstream ss;
-    ss << m_name << " -id \"" << id << "\" "
+    ss << m_cmd << " -id \"" << id << "\" "
        << "\"" << bin << "\"";
 
     if(systemPrint(ss.str()) != 0) {
@@ -143,7 +201,7 @@ void
 InstallName::rpath(PathRef from, PathRef to, PathRef bin) const
 {
     std::stringstream ss;
-    ss << m_name << " -rpath \""<< from << "\" "
+    ss << m_cmd << " -rpath \""<< from << "\" "
        << "\"" << to << "\" \"" << bin << "\"";
 
     if(systemPrint(ss.str()) != 0) {
@@ -152,3 +210,83 @@ InstallName::rpath(PathRef from, PathRef to, PathRef bin) const
         exitMsg(ss.str());
     }
 }
+
+// -----------------------------------------------------
+
+OTool::OTool()
+  : Base(OTool::defaultCmd, OTool::defaultVerbosity)
+{}
+
+OTool::OTool(std::string_view cmd, bool verbose)
+  : Base(cmd, verbose)
+{}
+
+std::string OTool::defaultCmd = "otool";
+bool OTool::defaultVerbosity = false;
+
+void
+OTool::initDefaults(std::string_view cmd, bool verbose)
+{
+  OTool::defaultCmd = cmd;
+  OTool::defaultVerbosity = verbose;
+}
+
+bool
+OTool::scanBinary(PathRef bin)
+{
+  if (!fs::exists(bin))
+  {
+      std::cerr << "\n/!\\ WARNING : can't scan a "
+                << "nonexistent file '" << bin << "'\n";
+      return false;
+  }
+
+  std::stringstream cmd;
+  cmd << m_cmd << " -l \"" << bin << "\"";
+
+  int status;
+
+  std::string c = cmd.str();
+  auto resStream = runAndGetOutput(cmd.str(), status);
+
+  std::regex reRath("^\\s+path\\s+(.*)\\s+\\(");
+  std::regex reDep("^\\s+name\\s+(.*)\\s+\\(");
+  std::regex reSearch("\\s+cmd\\s+(\\w*)");
+
+  enum state { Search, RPath, Dep };
+  state st = Search;
+  std::string line;
+  while (std::getline(resStream, line)) {
+    switch (st) {
+    case Search: {
+      std::smatch sm;
+      if (std::regex_search(line, sm, reSearch)) {
+        if (sm[1] == "LC_RPATH") st = RPath;
+        else if (sm[1] == "LC_LOAD_DYLIB" ||
+                 sm[1] == "LC_REEXPORT_DYLIB"
+        ) {
+          st = Dep;
+        }
+      }
+    } break;
+    case RPath: {
+      std::smatch sm;
+      if (std::regex_search(line, sm, reRath)) {
+        rpaths.emplace_back(sm[1]);
+        st = Search;
+      }
+    } break;
+    case Dep: {
+      std::smatch sm;
+      if (std::regex_search(line, sm, reDep)) {
+        dependencies.emplace_back(sm[1]);
+        st = Search;
+      }
+    } break;
+    }
+  }
+
+  return true;
+}
+
+

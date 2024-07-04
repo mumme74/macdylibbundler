@@ -256,7 +256,6 @@ struct SystemFnMock {
   int retVlu = 0;
 };
 
-
 TEST(Tools_InstallName, verbose) {
   testing::internal::CaptureStdout();
   Tools::InstallName test("test", true);
@@ -345,13 +344,101 @@ TEST(Tools_InstallName, id) {
 
 TEST(Tools_InstallName, Defaults) {
   Tools::InstallName tool;
-  EXPECT_EQ(tool.name(), "install_name_tool");
+  EXPECT_EQ(tool.cmd(), "install_name_tool");
   EXPECT_EQ(tool.verbose(), false);
 }
 
 TEST(Tools_InstallName, CustomDefaults) {
   Tools::InstallName::initDefaults("test_cmd", true);
   Tools::InstallName tool;
-  EXPECT_EQ(tool.name(), "test_cmd");
+  EXPECT_EQ(tool.cmd(), "test_cmd");
   EXPECT_EQ(tool.verbose(), true);
 }
+
+// -----------------------------------------------------
+
+struct POpenFnMock {
+  ~POpenFnMock() {
+    if (fp)
+      fclose(fp);
+  }
+  std::function<FILE* (const char*, const char*)> createOpen() {
+    fp = fopen(filename.c_str(), "r");
+    auto fn = [&](const char* cmd, const char* mode)->FILE* {
+      calls.emplace_back(std::pair<std::string, std::string>{cmd,mode});
+      if (!fp)
+        std::cerr << "Failed to open mockfile "
+                  << errno << " " << strerror(errno) << "\n";
+      return fp;
+    };
+    return fn;
+  }
+  std::function<int (FILE*)> createClose() {
+    auto fn = [&](FILE* fileP){
+      EXPECT_EQ(fileno(fileP), fileno(fp));
+      fclose(fp);
+      fp = nullptr;
+      return retVlu;
+    };
+    return fn;
+  }
+  fs::path filename = Path(__FILE__).parent_path()
+                    / "testdata/testdata_common_otooltest.txt";
+  std::vector<std::pair<std::string, std::string>> calls;
+  FILE* fp = nullptr;
+  int retVlu = 0;
+};
+
+TEST(Tools_OTool, errorWarning) {
+  testing::internal::CaptureStderr();
+  POpenFnMock mock;
+  Tools::OTool tool("testOtool", false);
+  tool.testingPopenFn(mock.createOpen(), mock.createClose());
+  tool.scanBinary(Path("somefile.dylib"));
+  EXPECT_EQ(mock.calls.size(), 0);
+  EXPECT_THAT(
+    testing::internal::GetCapturedStderr(),
+    MatchesRegex(".* WARNING .*"));
+}
+
+TEST(Tools_OTool, nonVerbose) {
+  testing::internal::CaptureStdout();
+  POpenFnMock mock;
+  Tools::OTool tool("testOtool", false);
+  tool.testingPopenFn(mock.createOpen(), mock.createClose());
+  tool.scanBinary(Path(mock.filename));
+  EXPECT_EQ(mock.calls.size(), 1);
+  EXPECT_EQ(mock.calls[0].first,
+    std::string("testOtool -l \"\"") + mock.filename.string() + "\"\"");
+  EXPECT_EQ(mock.calls[0].second, "r");
+  EXPECT_EQ(testing::internal::GetCapturedStdout(), "");
+}
+
+TEST(Tools_OTool, verbose) {
+  testing::internal::CaptureStdout();
+  POpenFnMock mock;
+  Tools::OTool tool("testOtool", true);
+  tool.testingPopenFn(mock.createOpen(), mock.createClose());
+  tool.scanBinary(Path(mock.filename));
+  EXPECT_EQ(mock.calls.size(), 1);
+  EXPECT_EQ(mock.calls[0].first,
+    std::string("testOtool -l \"\"") + mock.filename.string() + "\"\"");
+  EXPECT_EQ(mock.calls[0].second, "r");
+  EXPECT_THAT(testing::internal::GetCapturedStdout(),
+    MatchesRegex(std::string("\\s+testOtool -l \"\"") + mock.filename.string() + "\"\".*"));
+}
+
+TEST(Tools_OTool, paths) {
+  POpenFnMock mock;
+  Tools::OTool tool("testOtool", false);
+  tool.testingPopenFn(mock.createOpen(), mock.createClose());
+  tool.scanBinary(Path(mock.filename));
+  EXPECT_EQ(mock.calls.size(), 1);
+  EXPECT_EQ(tool.dependencies.size(), 16);
+  EXPECT_EQ(tool.rpaths.size(), 1);
+  EXPECT_EQ(tool.rpaths[0].string(), "/x86_64/usr/qt6/lib");
+  EXPECT_EQ(tool.dependencies[0].string(), "@rpath/QtXml.framework/Versions/A/QtXml");
+  EXPECT_EQ(tool.dependencies[9].string(), "@rpath/QtCore.framework/Versions/A/QtCore");
+  EXPECT_EQ(tool.dependencies[15].string(), "/usr/lib/libSystem.B.dylib");
+}
+

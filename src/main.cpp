@@ -105,6 +105,9 @@ int main (int argc, const char * argv[])
       Settings::installNameToolCmd(),
       Settings::verbose());
 
+    Tools::OTool::initDefaults(
+      Settings::otoolCmd(), Settings::verbose());
+
     auto amount = Settings::srcFiles().size();
     if(!Settings::bundleLibs() && amount < 1)
     {

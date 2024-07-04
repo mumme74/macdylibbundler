@@ -97,51 +97,6 @@ DylibBundler::isRpath(PathRef path)
     return fn == "@rpath" || fn == "@loader_path";
 }
 
-void
-DylibBundler::collectRpaths(PathRef file) {
-    if (!fs::exists(file))
-    {
-        std::cerr << "\n/!\\ WARNING : can't collect rpaths for nonexistent file '" << file << "'\n";
-        return;
-    }
-
-    std::stringstream cmd;
-    cmd << Settings::otoolCmd() << " -l \"" << file << "\"";
-    std::string output = system_get_output(cmd.str());
-
-    auto lc_lines = tokenize(output, "\n");
-
-    size_t pos = 0;
-    bool read_rpath = false;
-    while (pos < lc_lines.size())
-    {
-        auto line = lc_lines[pos];
-        pos++;
-
-        if (read_rpath)
-        {
-            size_t start_pos = line.find("path ");
-            size_t end_pos = line.find(" (");
-            if (start_pos == std::string::npos || end_pos == std::string::npos)
-            {
-                std::cerr << "\n/!\\ WARNING: Unexpected LC_RPATH format\n";
-                continue;
-            }
-            start_pos += 5;
-            auto rpath = line.substr(start_pos, end_pos - start_pos);
-            m_rpaths_per_file[file.string()].append(rpath);
-            read_rpath = false;
-            continue;
-        }
-
-        if (line.find("LC_RPATH") != std::string::npos)
-        {
-            read_rpath = true;
-            pos++;
-        }
-    }
-}
-
 std::string
 DylibBundler::searchFilenameInRPaths(
     PathRef rpath_file,
@@ -226,7 +181,8 @@ DylibBundler::fixRPathsOnFile(
 
     for (const auto& pair : m_rpaths_per_file){
         if (pair.first == original_file) {
-            rpaths_to_fix.emplace_back(pair.second);
+            for (const auto& rpath : pair.second)
+                rpaths_to_fix.emplace_back(rpath);
             break;
         }
     }
@@ -265,51 +221,6 @@ DylibBundler::addDependency(PathRef path, PathRef file)
     }
 }
 
-/*
- *  Fill vector 'lines' with dependencies of given 'filename'
- */
-void
-DylibBundler::collectDep(
-    PathRef file,
-    std::vector<std::string>& lines
-) {
-    // execute "otool -l" on the given file and collect the command's output
-    std::stringstream ss;
-    ss << Settings::otoolCmd() << " -l \"" << file << "\"";
-    std::string output = system_get_output(ss.str());
-
-    if(output.find("can't open file")!=std::string::npos or output.find("No such file")!=std::string::npos or output.size()<1)
-        exitMsg(std::string("Cannot find file ") + file.string()
-                 + " to read its dependencies");
-
-    // split output
-    auto raw_lines = tokenize(output, "\n");
-
-    bool searching = false;
-    for(const auto& line : raw_lines) {
-        const auto &is_prefix = [&line](const char *const p) {
-            return line.find(p) != std::string::npos;
-        };
-        if (is_prefix("cmd LC_LOAD_DYLIB") || is_prefix("cmd LC_REEXPORT_DYLIB"))
-        {
-            if (searching)
-                exitMsg("\n\n/!\\ ERROR: Failed to find name before next cmd");
-
-            searching = true;
-        }
-        else if (searching)
-        {
-            size_t found = line.find("name ");
-            if (found != std::string::npos) {
-                std::string ln{'\t'};
-                ln += line.substr(found+5, std::string::npos);
-                lines.push_back(ln);
-                searching = false;
-            }
-        }
-    }
-}
-
 void
 DylibBundler::collectDependencies(PathRef file, bool isExecutable)
 {
@@ -317,10 +228,11 @@ DylibBundler::collectDependencies(PathRef file, bool isExecutable)
     if (m_dep_state.find(file.string()) != m_dep_state.end())
         return;
 
-    collectRpaths(file);
+    Tools::OTool otool;
+    otool.scanBinary(file);
 
-    std::vector<std::string> lines;
-    collectDep(file, lines);
+    for (auto rpath : otool.rpaths)
+        m_rpaths_per_file[file.string()].emplace_back(rpath);
 
     Settings::verbose() ?
         std::cout << std::endl << "Collect dependencies for '"
@@ -328,32 +240,27 @@ DylibBundler::collectDependencies(PathRef file, bool isExecutable)
         : std::cout << ".";
     fflush(stdout);
 
-    for (const auto& line : lines)
+    for (const auto& path : otool.dependencies)
     {
-        if (line[0] != '\t') continue; // only lines beginning with a tab interest us
-
-        // trim useless info, keep only library name
-        auto dep_path = line.substr(1, line.rfind(" (") - 1);
-
-        if (line.find(".framework") != std::string::npos &&
+        if (path.before(".framework") != path &&
             !Settings::bundleFrameworks())
         {
             if (Settings::verbose())
-                std::cout << "  ignore framework: " <<  dep_path << std::endl;
+                std::cout << "  ignore framework: " <<  path << std::endl;
             continue;
         }
 
-        if (Settings::isSystemLibrary(dep_path)) {
+        if (Settings::isSystemLibrary(path)) {
             if (Settings::verbose())
-                std::cout << "  ignore system: " << dep_path << std::endl;
+                std::cout << "  ignore system: " << path << std::endl;
             continue;
         }
 
         if (Settings::verbose())
-          std::cout << "  adding: " << dep_path << " dependent file: " << file <<std::endl;
+          std::cout << "  adding: " << path << " dependent file: " << file <<std::endl;
         else std::cout << ".";
         std::cout.flush();
-        addDependency(Path(dep_path.data()), file);
+        addDependency(path, file);
     }
 
     Dependency exec(file, file, isExecutable);
