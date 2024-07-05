@@ -108,6 +108,8 @@ enum FileType: uint32_t {
   MH_KEXT_BUNDLE = 0xb,	/* x86_64 kexts */
 };
 
+const char* FiletypeStr(FileType type);
+
 enum Flags: uint32_t {
   /* Constants for the flags field of the mach_header */
   MH_NOUNDEFS = 0x1,    /* the object file has no undefined
@@ -294,9 +296,28 @@ enum LoadCmds: uint32_t {
     NOTE = 0x31,  /* arbitrary data included within a Mach-O file */
 };
 
+const char* LoadCmdStr(LoadCmds cmd);
+
 class MachOLoader;
+class mach_object;
+class load_command_bytes;
+class data_segment;
+
+template<typename T>
+std::ifstream& readInto(std::ifstream& file, T* dest)
+{
+  if (file.fail()) return file;
+  std::streamsize nBytes = sizeof(T);
+  if (file.readsome((char*)dest, nBytes) != nBytes) {
+    file.setstate(std::ios::failbit);
+  }
+  return file;
+}
+
+
 
 #pragma pack(push, 1)
+
 // if we have a fat binary this is what
 // in the very beginning of the file
 class fat_header {
@@ -306,8 +327,9 @@ public:
   Magic magicRaw() const;
   Magic magic() const;
   bool isBigEndian() const;
-
-  char* c_ptr();
+  std::ifstream& operator<<(std::ifstream& file) {
+    return readInto<fat_header>(file, this);
+  }
 private:
 	Magic	    m_magic;      /* FAT_MAGIC */
 	uint32_t	m_nfat_arch;  /* number of structs that follow */
@@ -326,6 +348,7 @@ class mach_header_32
 {
 public:
   mach_header_32();
+  mach_header_32(std::ifstream& file);
   Magic magicRaw() const;     // the magic marker, not accounted for endianness
   Magic magic() const;        // the magic marker, determines
   CpuType cputype() const;    // the cputype
@@ -336,7 +359,9 @@ public:
   bool isBigEndian() const;
   bool is64bits() const;
 
-  char* c_ptr();
+  std::ifstream& operator<<(std::ifstream& file) {
+    return readInto<mach_header_32>(file, this);
+  }
 
 protected:
   uint32_t convertEndian(uint32_t) const;
@@ -353,7 +378,12 @@ protected:
 class mach_header_64 : public mach_header_32 {
 public:
   mach_header_64();
+  mach_header_64(std::ifstream& file);
   uint32_t reserved() const;
+
+  std::ifstream& operator<<(std::ifstream& file) {
+    return readInto<mach_header_64>(file, this);
+  }
 
 private:
   uint32_t      m_reserved;       // not used?
@@ -390,13 +420,20 @@ union lc_str {
  */
 struct load_command
 {
+  load_command();
+  load_command(const load_command_bytes& cmd);
   LoadCmds cmd;        // the type of command
   uint32_t cmdsize;    // size of this command including
 };
 
 struct load_command_bytes : load_command
 {
-  std::unique_ptr<uint8_t[]> bytes;
+  load_command_bytes();
+  load_command_bytes(mach_object* owner);
+  std::unique_ptr<char[]> bytes;
+  mach_object* owner;
+  std::ifstream& operator<<(std::ifstream& file);
+  uint32_t bytessize() const;
 };
 
 // used by LC_LOAD_DYLIB, LC_LOAD_WEK_DYLIB and LC_REEXPORT_DYLIB
@@ -420,9 +457,8 @@ struct dylib
  * section structures directly follow the segment command and their size is
  * reflected in cmdsize.
  */
-struct segment_command { /* for 32-bit architectures */
-	uint32_t	cmd;		/* LC_SEGMENT */
-	uint32_t	cmdsize;	/* includes sizeof section structs */
+struct segment_command : load_command { /* for 32-bit architectures */
+  segment_command(const load_command_bytes& cmd);
 	char		segname[16];	/* segment name */
 	uint32_t	vmaddr;		/* memory address of this segment */
 	uint32_t	vmsize;		/* memory size of this segment */
@@ -440,9 +476,8 @@ struct segment_command { /* for 32-bit architectures */
  * sections then section_64 structures directly follow the 64-bit segment
  * command and their size is reflected in cmdsize.
  */
-struct segment_command_64 { /* for 64-bit architectures */
-	uint32_t	cmd;		/* LC_SEGMENT_64 */
-	uint32_t	cmdsize;	/* includes sizeof section_64 structs */
+struct segment_command_64 : load_command { /* for 64-bit architectures */
+  segment_command_64(const load_command_bytes& cmd);
 	char		segname[16];	/* segment name */
 	uint64_t	vmaddr;		/* memory address of this segment */
 	uint64_t	vmsize;		/* memory size of this segment */
@@ -455,6 +490,8 @@ struct segment_command_64 { /* for 64-bit architectures */
 };
 
 struct section { /* for 32-bit architectures */
+  section();
+  section(std::ifstream& file, mach_object& owner);
 	char		sectname[16];	/* name of this section */
 	char		segname[16];	/* segment this section goes in */
 	uint32_t	addr;		/* memory address of this section */
@@ -466,31 +503,39 @@ struct section { /* for 32-bit architectures */
 	uint32_t	flags;		/* flags (section type and attributes)*/
 	uint32_t	reserved1;	/* reserved (for offset or index) */
 	uint32_t	reserved2;	/* reserved (for count or sizeof) */
+
 };
 
 struct section_64 : section { /* for 64-bit architectures */
+  section_64();
+  section_64(std::ifstream& file, mach_object& owner);
 	uint32_t	reserved3;	/* reserved */
+  std::ifstream& operator<<(std::ifstream& file) {
+    return readInto<section_64>(file, this);
+  }
 };
 
+
+
+// ---------------------------------------------------------------
 
 class mach_object {
 public:
   mach_object(std::ifstream& file);
   bool isBigEndian() const;
+  bool is64bits() const;
   const mach_header_32* header32() const;
   const mach_header_64* header64() const;
   std::vector<Path> rpaths() const;
   std::vector<Path> loadDylibPaths() const;
   std::vector<Path> reexportDylibPaths() const;
   std::vector<Path> weakLoadDylib() const;
-  std::vector<const section*> sections32() const;
-  std::vector<const section_64*> sections64() const;
+  std::vector<const data_segment*> dataSegments() const;
   void changeRPath(PathRef oldPath, PathRef newPath);
   void changeLoadDylibPaths();
   void changeReexportDylibPaths();
   bool failure() const;
 
-private:
   template<typename T>
   T endian(T in) const
   {
@@ -500,48 +545,20 @@ private:
       return isBigEndian() ? reverseEndian<T>(in) : in;
   }
 
-  template<typename T, typename U, typename V>
-  void readSegment(std::ifstream& file, const load_command_bytes& cmd)
-  {
-      T seg{};
-      memcpy((void*)&seg, (void*)&cmd, sizeof(load_command));
-      auto nBytes = sizeof(seg) - sizeof(load_command);
-      memcpy((void*)seg.segname, (void*)cmd.bytes.get(), nBytes);
-      this->readSections<T, U, V>(file, seg);
-  }
-
-  template<typename T, typename U, typename V>
-  void readSections(std::ifstream& file, T& seg)
-  {
-    auto pos = endian(seg.fileoff) + this->fileoff();
-    file.seekg(pos);
-
-    for (uint32_t i = 0, end = endian(seg.nsects); i < end; ++i) {
-      auto sec = std::make_unique<U>();
-      if (file.readsome((char*)sec.get(), sizeof(T)) != sizeof(T)) {
-        fail(); return;
-      }
-
-      V align = endian<V>(sec->align);
-      file.seekg(align*2 + file.tellg());
-
-      this->m_sections.emplace_back(std::move(sec));
-    }
-  }
-
+private:
   void fail();
   void readHdr(std::ifstream& file);
   void readCmds(std::ifstream& file);
   void readData(std::ifstream& file);
   void readLcStr(
-    lc_str& lcStr, const uint8_t* buf) const;
+    lc_str& lcStr, const char* buf) const;
   std::vector<Path> searchForDylibs(LoadCmds type) const;
   size_t fileoff() const;
 
 
   std::unique_ptr<mach_header_32> m_hdr;
   std::vector<load_command_bytes> m_load_cmds;
-  std::vector<std::unique_ptr<section>> m_sections;
+  std::vector<std::unique_ptr<data_segment>> m_data_segments;
 };
 
 class fat_object {
@@ -558,7 +575,38 @@ private:
   std::vector<mach_object> m_objs;
 };
 
+// ------------------------------------------------------------------
 
+/// raw data copied from data segment
+class data_segment {
+public:
+  data_segment();
+  data_segment(std::ifstream& file, const load_command_bytes& cmd);
+
+  char segname[sizeof(segment_command::segname)];
+  uint64_t filesize;
+  uint64_t fileoff;
+  std::unique_ptr<char[]> bytes;
+
+private:
+  template<typename T, typename U>
+    void read_into(std::ifstream& file, const load_command_bytes& cmd)
+  {
+    T seg{cmd};
+    memcpy((void*)segname, (void*)seg.segname, sizeof(seg.segname));
+    fileoff = seg.fileoff;
+    filesize = seg.filesize;
+
+    file.seekg(cmd.owner->endian(fileoff));
+
+    std::streampos sz = cmd.owner->endian<U>(filesize);
+    bytes = std::make_unique<char[]>(sz);
+    if (file.readsome(bytes.get(), sz) != sz) {
+      file.setstate(std::ios::badbit);
+      return;
+    }
+  }
+};
 
 
 

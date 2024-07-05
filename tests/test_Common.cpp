@@ -449,10 +449,6 @@ TEST(Tools_OTool, paths) {
 class MachOTest : public testing::Test
 {
 public:
-  ~MachOTest() {
-    std::cout << "destructor\n";
-  }
-
   void SetUp() override {
     auto path = fs::path(__FILE__).parent_path() / "testdata" / "libicuio.73.dylib";
     file.open(path, std::ios::binary);
@@ -487,7 +483,34 @@ TEST_F(MachOTest, readLoadCmds) {
 
 TEST_F(MachOTest, sections) {
   MachO::mach_object macho(file);
-  auto sections = macho.sections64();
-  EXPECT_EQ(sections.size(), 4);
+  auto segm = macho.dataSegments();
+  EXPECT_EQ(segm.size(), 3);
+  EXPECT_STREQ(segm.at(0)->segname, "__TEXT");
+  EXPECT_STREQ(segm.at(1)->segname, "__DATA");
+  EXPECT_STREQ(segm.at(2)->segname, "__LINKEDIT");
 }
+
+TEST_F(MachOTest, readToEnd) {
+  MachO::mach_object macho{file};
+  auto pos = file.tellg();
+  file.seekg(0, file.end);
+  auto end = file.tellg();
+  file.seekg(pos);
+  EXPECT_FALSE(file.eof());
+  file.get();
+  EXPECT_TRUE(file.eof());
+  EXPECT_EQ(pos, end);
+}
+
+// ------------------------------------------------------------
+
+
+TEST(MachoIOS, readTest) {
+  std::ifstream file;
+  file.open(fs::path(__FILE__).parent_path() / "testdata" / "AngryBirds2");
+  MachO::mach_object macho{file};
+
+  EXPECT_EQ(macho.is64bits(), true);
+}
+
 
