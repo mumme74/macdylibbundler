@@ -177,32 +177,50 @@ private:
 };
 } // namespace std::filesystem
 
+
+template<typename T>
+T reverseEndian(T in)
+{
+  T buf[sizeof(T)];
+  for (size_t i = 0, j = sizeof(T) -1; i < sizeof(T); ++i, j--)
+    buf[j] = ((uint8_t*)&in)[i];
+  return (T)buf[0];
+}
+
+static constexpr uint32_t _magic_uint32_ = 0x01020304;
+static constexpr uint8_t _magic_ = (const uint8_t&)_magic_uint32_;
+static constexpr bool hostIsLittleEndian = _magic_ == 0x04;
+static constexpr bool hostIsBigEndian = _magic_ == 0x01;
+static_assert(hostIsLittleEndian || hostIsLittleEndian,
+             "Cannot determine endianness!");
+
 using PathRef = const std::filesystem::extended_path&;
 using Path = std::filesystem::extended_path;
 
 /// @brief  convert an uint from native to bigendian and reverse again
 typedef union _bigendian  {
-private:
-    static constexpr uint32_t uint32_ = 0x01020304;
-    static constexpr uint8_t magic_ = (const uint8_t&)uint32_;
-    static constexpr bool little = magic_ == 0x04;
-    static constexpr bool big = magic_ == 0x01;
-    static_assert(little || big, "Cannot determine endianness!");
-    static void conv(uint8_t* uTo, uint8_t* uFrom, size_t sz);
 public:
-    static constexpr bool middle = magic_ == 0x02;
     _bigendian(uint16_t vlu);
     _bigendian(uint32_t vlu);
     _bigendian(uint64_t vlu);
-
-    /// @brief bytes in bigendian order
-    uint8_t u16arr[2];
-    uint8_t u32arr[4];
-    uint8_t u64arr[8];
     /// @brief go back to native again
     uint16_t u16native();
     uint32_t u32native();
     uint64_t u64native();
+
+    /// @brief bytes in bigendian order
+    union {
+      uint8_t u16arr[2];
+      uint16_t u16vlu;
+    };
+    union {
+      uint8_t u32arr[4];
+      uint32_t u32vlu;
+    };
+    union {
+      uint8_t u64arr[8];
+      uint64_t u64vlu;
+    };
 
 } bigendian_t;
 

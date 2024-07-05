@@ -156,9 +156,8 @@ extended_path::end_name() const
 // ---------------------------------------------------------
 
 _bigendian::_bigendian(uint16_t vlu) {
-  if constexpr(little) {
-    uint8_t *a = (uint8_t*)(&vlu);
-    _bigendian::conv(u16arr, a, 2);
+  if constexpr(hostIsLittleEndian) {
+    u16vlu = reverseEndian<uint16_t>(vlu);
   } else {
     auto u = (uint16_t*)u16arr;
     u[0] = vlu;
@@ -166,9 +165,8 @@ _bigendian::_bigendian(uint16_t vlu) {
 }
 
 _bigendian::_bigendian(uint32_t vlu)  {
-  if constexpr(little) {
-    uint8_t *a = (uint8_t*)(&vlu);
-    _bigendian::conv(u32arr, a, 4);
+  if constexpr(hostIsLittleEndian) {
+    u32vlu = reverseEndian<uint32_t>(vlu);
   } else{
     auto u = (uint32_t*)u32arr;
     u[0] = vlu;
@@ -176,9 +174,8 @@ _bigendian::_bigendian(uint32_t vlu)  {
 }
 
 _bigendian::_bigendian(uint64_t vlu)  {
-  if constexpr(little) {
-    uint8_t *a = (uint8_t*)(&vlu);
-    _bigendian::conv(u64arr, a, 8);
+  if constexpr(hostIsLittleEndian) {
+    u64vlu = reverseEndian<uint64_t>(vlu);
   } else{
     auto u = (uint64_t*)u64arr;
     u[0] = vlu;
@@ -187,11 +184,8 @@ _bigendian::_bigendian(uint64_t vlu)  {
 
 uint16_t
 _bigendian::u16native() {
-  if constexpr(little) {
-    uint16_t vlu;
-    uint8_t *a = (uint8_t*)(&vlu);
-    _bigendian::conv(a, u16arr, 2);
-    return vlu;
+  if constexpr(hostIsLittleEndian) {
+    return reverseEndian(u16vlu);
   } else {
     return (uint16_t)u16arr[0];
   }
@@ -199,11 +193,8 @@ _bigendian::u16native() {
 
 uint32_t
 _bigendian::u32native() {
-  if constexpr(little) {
-    uint32_t vlu;
-    uint8_t *a = (uint8_t*)(&vlu);
-    _bigendian::conv(a, u32arr, 4);
-    return vlu;
+  if constexpr(hostIsLittleEndian) {
+    return reverseEndian(u32vlu);
   } else {
     return (uint32_t)u32arr[0];
   }
@@ -211,19 +202,9 @@ _bigendian::u32native() {
 
 uint64_t
 _bigendian::u64native() {
-  if constexpr(little) {
-    uint64_t vlu;
-    uint8_t *a = (uint8_t*)(&vlu);
-    _bigendian::conv(a, u64arr, 8);
-    return vlu;
+  if constexpr(hostIsLittleEndian) {
+    return reverseEndian(u64vlu);
   } else {
     return (uint64_t)u64arr[0];
   }
-}
-
-//static
-void _bigendian::conv(uint8_t* uTo, uint8_t* uFrom, size_t sz)
-{
-  for (size_t i = 0, j = sz-1; i < sz; ++i, --j)
-    uTo[i] = uFrom[j];
 }

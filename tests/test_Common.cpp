@@ -25,10 +25,12 @@ THE SOFTWARE.
 #include <gmock/gmock.h>
 
 #include <iostream>
+#include <fstream>
 #include <filesystem>
 #include "Common.h"
 #include "Types.h"
 #include "Tools.h"
+#include "MachO.h"
 
 using ::testing::MatchesRegex;
 
@@ -440,5 +442,52 @@ TEST(Tools_OTool, paths) {
   EXPECT_EQ(tool.dependencies[0].string(), "@rpath/QtXml.framework/Versions/A/QtXml");
   EXPECT_EQ(tool.dependencies[9].string(), "@rpath/QtCore.framework/Versions/A/QtCore");
   EXPECT_EQ(tool.dependencies[15].string(), "/usr/lib/libSystem.B.dylib");
+}
+
+// ----------------------------------------------------------------------
+
+class MachOTest : public testing::Test
+{
+public:
+  ~MachOTest() {
+    std::cout << "destructor\n";
+  }
+
+  void SetUp() override {
+    auto path = fs::path(__FILE__).parent_path() / "testdata" / "libicuio.73.dylib";
+    file.open(path, std::ios::binary);
+    ASSERT_EQ(file.fail(), false);
+  }
+
+  void TearDown() override {
+    file.close();
+  }
+
+  std::ifstream file;
+};
+
+TEST_F(MachOTest, readHeader) {
+  MachO::mach_object macho(file);
+  EXPECT_EQ(macho.failure(), false);
+
+  EXPECT_EQ(macho.isBigEndian(), false);
+}
+
+TEST_F(MachOTest, readLoadCmds) {
+  MachO::mach_object macho(file);
+
+  auto dylibs = macho.loadDylibPaths();
+  EXPECT_EQ(dylibs.size(), 5);
+  EXPECT_EQ(dylibs[0].string(), "@executable_path/../libs/libicuuc.73.dylib");
+  EXPECT_EQ(dylibs[1].string(), "@executable_path/../libs/libicudata.73.dylib");
+  EXPECT_EQ(dylibs[2].string(), "@executable_path/../libs/libicui18n.73.dylib");
+  EXPECT_EQ(dylibs[3].string(), "/usr/lib/libSystem.B.dylib");
+  EXPECT_EQ(dylibs[4].string(), "/usr/lib/libc++.1.dylib");
+}
+
+TEST_F(MachOTest, sections) {
+  MachO::mach_object macho(file);
+  auto sections = macho.sections64();
+  EXPECT_EQ(sections.size(), 4);
 }
 
