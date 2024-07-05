@@ -181,10 +181,10 @@ private:
 template<typename T>
 T reverseEndian(T in)
 {
-  T buf[sizeof(T)];
+  uint8_t buf[sizeof(T)];
   for (size_t i = 0, j = sizeof(T) -1; i < sizeof(T); ++i, j--)
     buf[j] = ((uint8_t*)&in)[i];
-  return (T)buf[0];
+  return *(T*)buf;
 }
 
 static constexpr uint32_t _magic_uint32_ = 0x01020304;

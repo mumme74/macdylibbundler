@@ -159,8 +159,7 @@ _bigendian::_bigendian(uint16_t vlu) {
   if constexpr(hostIsLittleEndian) {
     u16vlu = reverseEndian<uint16_t>(vlu);
   } else {
-    auto u = (uint16_t*)u16arr;
-    u[0] = vlu;
+    u16vlu = vlu;
   }
 }
 
@@ -168,8 +167,7 @@ _bigendian::_bigendian(uint32_t vlu)  {
   if constexpr(hostIsLittleEndian) {
     u32vlu = reverseEndian<uint32_t>(vlu);
   } else{
-    auto u = (uint32_t*)u32arr;
-    u[0] = vlu;
+    u32vlu = vlu;
   }
 }
 
@@ -177,8 +175,7 @@ _bigendian::_bigendian(uint64_t vlu)  {
   if constexpr(hostIsLittleEndian) {
     u64vlu = reverseEndian<uint64_t>(vlu);
   } else{
-    auto u = (uint64_t*)u64arr;
-    u[0] = vlu;
+    u64vlu = vlu;
   }
 }
 
