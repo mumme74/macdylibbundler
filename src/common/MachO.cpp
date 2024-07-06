@@ -230,16 +230,20 @@ fat_header::nfat_arch() const
 // -----------------------------------------------------------
 
 fat_arch::fat_arch()
-  : cputype{0}
-  , cpusubtype{0}
-  , offset{0}
-  , size{0}
-  , align{0}
+  : m_cputype{0}
+  , m_cpusubtype{0}
+  , m_offset{0}
+  , m_size{0}
+  , m_align{0}
 {}
 
-fat_arch::fat_arch(std::ifstream& file)
+fat_arch::fat_arch(std::ifstream& file, const mach_fat_object& fat)
 {
   readInto<fat_arch>(file, this);
+  // five 32bit values
+  uint32_t *buf = (uint32_t*)&m_cputype;
+  for (size_t i = 0; i < 5; ++i)
+    buf[i] = fat.endian(buf[i]);
 }
 
 // -----------------------------------------------------------
@@ -505,15 +509,33 @@ section_64::section_64(const char* bytes, const mach_object& obj)
 
 // -----------------------------------------------------------
 
+linkedit_data_command::linkedit_data_command()
+  : load_command{}
+  , m_dataoff{0}
+  , m_datasize{0}
+{}
+
+linkedit_data_command::linkedit_data_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd}
+{
+  memcpy((void*)&m_dataoff, (void*)cmd.bytes.get(),
+    sizeof(linkedit_data_command) - sizeof(load_command));
+  m_dataoff = obj.endian(m_dataoff);
+  m_datasize = obj.endian(m_datasize);
+}
+
+// -----------------------------------------------------------
+
 mach_object::mach_object()
-  : m_startpos{0}
+  : m_start_pos{0}
   , m_hdr{}
   , m_load_cmds{}
   , m_data_segments{}
 {}
 
 mach_object::mach_object(std::ifstream& file)
-  : m_startpos{file.tellg()}
+  : m_start_pos{static_cast<size_t>(file.tellg())}
   , m_hdr{}
   , m_load_cmds{}
   , m_data_segments{}
@@ -580,7 +602,7 @@ mach_object::readHdr(std::ifstream& file)
     fail(); return;
   }
 
-  file.seekg(m_startpos);
+  file.seekg(m_start_pos);
 
   if (magic == Magic64 || magic == Cigam64) {
     mach_header_64 hdr{file};
@@ -598,7 +620,6 @@ void
 mach_object::readCmds(std::ifstream& file)
 {
   // read load commands
-  auto pos = 0+file.tellg();
   for (size_t i = 0, end = m_hdr->ncmds(); i < end; ++i) {
     load_command_bytes cmd{file, *this};
 
@@ -614,9 +635,24 @@ mach_object::readData(std::ifstream& file)
 {
   for (const auto& cmd : m_load_cmds) {
     switch (cmd.cmd()) {
-    case LoadCmds::LC_SEGMENT: [[fallthrough]];
-    case LoadCmds::LC_SEGMENT_64:{
-      auto seg = std::make_unique<data_segment>(file, cmd, *this);
+    case LC_CODE_SIGNATURE:
+    case LC_SEGMENT_SPLIT_INFO:
+    case LC_FUNCTION_STARTS:
+    case LC_DATA_IN_CODE:
+    case LC_DYLIB_CODE_SIGN_DRS:
+    case LC_LINKER_OPTIMIZATION_HINT: /*{
+      auto link = std::make_unique<data_segment>();
+      link->asLinkEdit(file, cmd, *this);
+      m_data_segments.emplace_back(std::move(link));
+    }*/ break;
+    case LC_SEGMENT: {
+      auto seg = std::make_unique<data_segment>();
+      seg->asSegment<segment_command>(file, cmd, *this);
+      m_data_segments.emplace_back(std::move(seg));
+    } break;
+    case LC_SEGMENT_64:{
+      auto seg = std::make_unique<data_segment>();
+      seg->asSegment<segment_command_64>(file, cmd, *this);
       m_data_segments.emplace_back(std::move(seg));
     } break;
     default:; // nothing in data sections
@@ -673,6 +709,22 @@ mach_object::dataSegments() const
   return vec;
 }
 
+ const std::vector<load_command_bytes>&
+ mach_object::loadCommands() const
+ {
+  return m_load_cmds;
+ }
+
+bool
+mach_object::hasBeenSigned() const
+{
+  for (const auto& cmd : m_load_cmds) {
+    if (cmd.cmd() == LC_CODE_SIGNATURE)
+      return true;
+  }
+  return false;
+}
+
 std::vector<Path>
 mach_object::searchForDylibs(LoadCmds type) const
 {
@@ -693,8 +745,8 @@ mach_object::fileoff() const
 {
   if (m_hdr) {
     if (m_hdr->is64bits())
-      return sizeof(mach_header_64) + m_hdr->sizeofcmds();
-    return sizeof(mach_header_32) + m_hdr->sizeofcmds();
+      return m_start_pos + sizeof(mach_header_64) + m_hdr->sizeofcmds();
+    return m_start_pos + sizeof(mach_header_32) + m_hdr->sizeofcmds();
   }
   return -1;
 }
@@ -728,20 +780,35 @@ data_segment::data_segment()
   , m_fileoff{0}
 {}
 
-data_segment::data_segment(
+void
+data_segment::asLinkEdit(
   std::ifstream& file,
   const load_command_bytes& cmd,
   const mach_object& obj
-) : m_segname{0}
-  , m_filesize{0}
-  , m_fileoff{0}
-{
-  if (cmd.cmd() == LC_SEGMENT_64) {
-    read_into<segment_command_64, uint64_t>(file, cmd, obj);
-  } else {
-    read_into<segment_command_64, uint32_t>(file, cmd, obj);
+) {
+  const char segname[segment_command::SZ_SEGNAME] = "__LINKEDIT";
+  linkedit_data_command link{cmd, obj};
+  memcpy((void*)this->m_segname, (void*)segname, sizeof(m_segname));
+  m_fileoff = link.dataoff();
+  m_filesize = link.datasize();
+
+  read_into(file, obj);
+}
+
+void
+data_segment::read_into(
+  std::ifstream& file, const mach_object& obj
+) {
+  file.seekg(obj.startPos() + m_fileoff);
+
+  std::streampos sz = m_filesize;
+  bytes = std::make_unique<char[]>(sz);
+  if (file.readsome(bytes.get(), sz) != sz) {
+    file.setstate(std::ios::badbit);
+    return;
   }
 }
+
 
 // -----------------------------------------------------------
 
@@ -764,8 +831,8 @@ mach_fat_object::mach_fat_object(std::ifstream& file)
 
   // load architecture
   for (size_t i = 0, end = m_hdr->nfat_arch(); i < end; ++i) {
-    fat_arch arch{file};
-    if (!file || !arch.size) {
+    fat_arch arch{file, *this};
+    if (!file || !arch.size()) {
       fail();
       return;
     }
@@ -780,8 +847,7 @@ mach_fat_object::mach_fat_object(std::ifstream& file)
 
   // load objects from within this fat object
   for (const auto& arch : m_fat_arch) {
-    std::streampos pos = endian(arch.offset);
-    file.seekg(pos);
+    file.seekg(arch.offset());
 
     mach_object obj{file};
     if (!file) {
@@ -789,17 +855,9 @@ mach_fat_object::mach_fat_object(std::ifstream& file)
       return;
     }
 
-    auto p = file.tellg();
-    size_t ali = endian<uint32_t>(arch.align);
-    uint32_t po = std::pow(2u, ali);
-    file.seekg(po + file.tellg());
-
-    auto p2 = file.tellg();
-    auto e = endian(arch.size);
-
-    //assert(file.tellg() == endian(arch.size) + pos &&
-    //      "Object size mismatch in a fat binary, "
-    //      "please report this");
+    assert(file.tellg() == arch.offset() + arch.size() &&
+          "Object size mismatch in a fat binary, "
+          "please report this");
 
     m_objects.emplace_back(std::move(obj));
   }
@@ -835,6 +893,76 @@ mach_fat_object::fail()
   m_hdr.release();
   m_fat_arch.clear();
   m_objects.clear();
+}
+
+// -----------------------------------------------------------
+
+introspect_object::introspect_object(const mach_object* obj)
+  : m_obj{obj}
+{}
+
+std::string
+introspect_object::loadCmds() const
+{
+  auto getStr = [&](const lc_str lc, const load_command_bytes& cmd){
+    return &cmd.bytes.get()[lc.offset - sizeof(load_command)];
+  };
+
+  std::stringstream ss;
+  for (const auto& cmd : m_obj->loadCommands()) {
+    ss << std::setw(9) << std::right
+       << "Load command " << (uint32_t)cmd.cmd() << "\n"
+       << "  " << LoadCmdStr(cmd.cmd()) << "\n"
+       << "  cmdsize " << cmd.cmdsize() << "\n";
+
+
+    switch (cmd.cmd()) {
+    case LC_LOAD_DYLIB:
+    case LC_LOAD_WEAK_DYLIB:
+    case LC_REEXPORT_DYLIB: {
+      dylib_command dylib{cmd, *m_obj};
+      ss << "  name " << getStr(dylib.name(), cmd) << "\n"
+         << "  timestamp " << dylib.timestamp() << "\n"
+         << "  current_version " << dylib.current_version() << "\n"
+         << "  compatibility_version " << dylib.compatibility_version() << "\n";
+    } break;
+    case LC_RPATH: {
+      lc_str lc{cmd.bytes.get(), m_obj};
+      ss << "  path " << getStr(lc, cmd) << "\n";
+    } break;
+    default:{
+      hexdump(ss, cmd);
+    } break;
+    }
+  }
+  return ss.str();
+}
+
+std::stringstream&
+introspect_object::hexdump(
+  std::stringstream& ss, const load_command_bytes& cmd
+) const {
+  ss << std::setw(9) << "  bits:\n";
+  for (size_t i = 0; i < cmd.cmdsize(); i += 16) {
+    ss << "  " << std::setfill('0') << std::setw(8)
+        << std::hex << i << std::setw(2);
+
+    for (size_t j = 0; j < 16; ++j) {
+      auto byte = cmd.bytes.get()[i+j];
+      ss << " " << std::right << std::setfill('0')
+          << std::setw(2) << std::hex
+          << ((uint16_t)byte & 0x00FF);
+    }
+
+    ss << "  " << std::setw(0);
+    for ( size_t j = 0; j < 16; ++j) {
+      auto byte = cmd.bytes.get()[i+j];
+      ss << (byte >= ' ' ? byte : '.') << ' ';
+    }
+    ss << '\n';
+  }
+  ss << std::dec;
+  return ss;
 }
 
 

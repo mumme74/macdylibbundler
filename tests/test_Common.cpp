@@ -544,10 +544,42 @@ TEST_F(FatMachO, readHeader) {
   const auto archs = fat.architectures();
   const auto& obj = fat.objects();
   EXPECT_EQ(archs.size(), 2);
-  EXPECT_STREQ(MachO::CpuTypeStr(fat.endian(archs[0].cputype)), "MH_X86_64");
+  EXPECT_STREQ(MachO::CpuTypeStr(archs[0].cputype()), "MH_X86_64");
   EXPECT_FALSE(obj[0].isBigEndian());
   EXPECT_TRUE(obj[0].is64bits());
-  EXPECT_STREQ(MachO::CpuTypeStr(fat.endian(archs[1].cputype)), "MH_ARM64");
+  EXPECT_TRUE(obj[0].hasBeenSigned());
+  EXPECT_STREQ(MachO::CpuTypeStr(archs[1].cputype()), "MH_ARM64");
   EXPECT_FALSE(obj[1].isBigEndian());
+  EXPECT_TRUE(obj[0].hasBeenSigned());
   EXPECT_TRUE(obj[1].is64bits());
+}
+
+// --------------------------------------------------------------
+
+class MachOIntropect : public testing::Test
+{
+public:
+  void SetUp()
+  {
+    auto path = fs::path(__FILE__).parent_path() / "testdata" / "classphoto";
+    file.open(path, std::ios::binary);
+    ASSERT_EQ(file.fail(), false);
+
+    macho = std::make_unique<MachO::mach_object>(file);
+    ASSERT_FALSE(macho->failure());
+  }
+
+  void TearDown()
+  {
+    file.close();
+  }
+
+  std::unique_ptr<MachO::mach_object> macho;
+  std::ifstream file;
+};
+
+TEST_F(MachOIntropect, loadCmds) {
+  MachO::introspect_object insp(macho.get());
+  auto str = insp.loadCmds();
+  std::cout << str << "\n";
 }
