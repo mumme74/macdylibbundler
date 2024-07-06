@@ -201,99 +201,103 @@ enum Flags: uint32_t {
                                           application extension. */
 };
 
+const char* FlagsStr(Flags flag);
+
 
 
 enum CpuType: uint32_t {
 
-  ANY =      ((cpu_type_t) -1),
+  MH_ANY =      ((cpu_type_t) -1),
 
-  VAX =      (cpu_type_t) 1,
+  MH_VAX =      (cpu_type_t) 1,
 /* skip				((cpu_type_t) 2)	*/
 /* skip				((cpu_type_t) 3)	*/
 /* skip				((cpu_type_t) 4)	*/
 /* skip				((cpu_type_t) 5)	*/
-  MC680x0 =  (cpu_type_t) 6,
-  X86     =  (cpu_type_t) 7,
-  X86_64  =  (cpu_type_t)(7 | CPU_ARCH_ABI64),
+  MH_MC680x0 =  (cpu_type_t) 6,
+  MH_X86     =  (cpu_type_t) 7,
+  MH_X86_64  =  (cpu_type_t)(7 | CPU_ARCH_ABI64),
 
 /* skip CPU_TYPE_MIPS		((cpu_type_t) 8)	*/
 /* skip 			((cpu_type_t) 9)	*/
-  MC98000  = ((cpu_type_t) 10),
-  HPPA     = ((cpu_type_t) 11),
-  ARM      = ((cpu_type_t) 12),
-  ARM64    = (cpu_type_t) (12 | CPU_ARCH_ABI64),
-  MC88000  = ((cpu_type_t) 13),
-  SPARC    = ((cpu_type_t) 14),
-  I860     = ((cpu_type_t) 15),
+  MH_MC98000  = ((cpu_type_t) 10),
+  MH_HPPA     = ((cpu_type_t) 11),
+  MH_ARM      = ((cpu_type_t) 12),
+  MH_ARM64    = (cpu_type_t) (12 | CPU_ARCH_ABI64),
+  MH_MC88000  = ((cpu_type_t) 13),
+  MH_SPARC    = ((cpu_type_t) 14),
+  MH_I860     = ((cpu_type_t) 15),
 /* skip	CPU_TYPE_ALPHA		((cpu_type_t) 16)	*/
 /* skip				((cpu_type_t) 17)	*/
-  POWERPC  = ((cpu_type_t) 18),
-  POWERPC64 =(cpu_type_t) (18 | CPU_ARCH_ABI64),
+  MH_POWERPC  = ((cpu_type_t) 18),
+  MH_POWERPC64 =(cpu_type_t) (18 | CPU_ARCH_ABI64),
 };
+
+const char* CpuTypeStr(CpuType type);
 
 
 /* Constants for the cmd field of all load commands, the type */
 const uint32_t LC_REQ_DYLD = 0x80000000;
 enum LoadCmds: uint32_t {
-    SEGMENT = 0x1, 	/* segment of this file to be mapped */
-    SYMTAB = 0x2, 	/* link-edit stab symbol table info */
-    SYMSEG = 0x3, 	/* link-edit gdb symbol table info (obsolete) */
-    THREAD = 0x4, 	/* thread */
-    UNIXTHREAD = 0x5, 	/* unix thread (includes a stack) */
-    LOADFVMLIB = 0x6, 	/* load a specified fixed VM shared library */
-    IDFVMLIB = 0x7, 	/* fixed VM shared library identification */
-    IDENT = 0x8, 	/* object identification info (obsolete) */
-    FVMFILE = 0x9, 	/* fixed VM file inclusion (internal use) */
-    PREPAGE = 0xa,      /* prepage command (internal use) */
-    DYSYMTAB = 0xb, 	/* dynamic link-edit symbol table info */
-    LOAD_DYLIB = 0xc, 	/* load a dynamically linked shared library */
-    ID_DYLIB = 0xd, 	/* dynamically linked shared lib ident */
-    LOAD_DYLINKER = 0xe, 	/* load a dynamic linker */
-    ID_DYLINKER = 0xf, 	/* dynamic linker identification */
-    PREBOUND_DYLIB = 0x10, 	/* modules prebound for a dynamically */
+    LC_SEGMENT = 0x1, 	/* segment of this file to be mapped */
+    LC_SYMTAB = 0x2, 	/* link-edit stab symbol table info */
+    LC_SYMSEG = 0x3, 	/* link-edit gdb symbol table info (obsolete) */
+    LC_THREAD = 0x4, 	/* thread */
+    LC_UNIXTHREAD = 0x5, 	/* unix thread (includes a stack) */
+    LC_LOADFVMLIB = 0x6, 	/* load a specified fixed VM shared library */
+    LC_IDFVMLIB = 0x7, 	/* fixed VM shared library identification */
+    LC_IDENT = 0x8, 	/* object identification info (obsolete) */
+    LC_FVMFILE = 0x9, 	/* fixed VM file inclusion (internal use) */
+    LC_PREPAGE = 0xa,      /* prepage command (internal use) */
+    LC_DYSYMTAB = 0xb, 	/* dynamic link-edit symbol table info */
+    LC_LOAD_DYLIB = 0xc, 	/* load a dynamically linked shared library */
+    LC_ID_DYLIB = 0xd, 	/* dynamically linked shared lib ident */
+    LC_LOAD_DYLINKER = 0xe, 	/* load a dynamic linker */
+    LC_ID_DYLINKER = 0xf, 	/* dynamic linker identification */
+    LC_PREBOUND_DYLIB = 0x10, 	/* modules prebound for a dynamically */
 				/*  linked shared library */
-    ROUTINES = 0x11, 	/* image routines */
-    SUB_FRAMEWORK = 0x12, 	/* sub framework */
-    SUB_UMBRELLA = 0x13, 	/* sub umbrella */
-    SUB_CLIENT = 0x14, 	/* sub client */
-    SUB_LIBRARY = 0x15, 	/* sub library */
-    TWOLEVEL_HINTS = 0x16, 	/* two-level namespace lookup hints */
-    PREBIND_CKSUM = 0x17, 	/* prebind checksum */
+    LC_ROUTINES = 0x11, 	/* image routines */
+    LC_SUB_FRAMEWORK = 0x12, 	/* sub framework */
+    LC_SUB_UMBRELLA = 0x13, 	/* sub umbrella */
+    LC_SUB_CLIENT = 0x14, 	/* sub client */
+    LC_SUB_LIBRARY = 0x15, 	/* sub library */
+    LC_TWOLEVEL_HINTS = 0x16, 	/* two-level namespace lookup hints */
+    LC_PREBIND_CKSUM = 0x17, 	/* prebind checksum */
 
 /*
  * load a dynamically linked shared library that is allowed to be missing
  * (all symbols are weak imported).
  */
-    LOAD_WEAK_DYLIB = (0x18 | LC_REQ_DYLD),
+    LC_LOAD_WEAK_DYLIB = (0x18 | LC_REQ_DYLD),
 
-    SEGMENT_64 = 0x19, 	/* 64-bit segment of this file to be
+    LC_SEGMENT_64 = 0x19, 	/* 64-bit segment of this file to be
 				   mapped */
-    ROUTINES_64 = 0x1a, 	/* 64-bit image routines */
-    UUID = 0x1b, 	/* the uuid */
-    RPATH = (0x1c | LC_REQ_DYLD),    /* runpath additions */
-    CODE_SIGNATURE = 0x1d, 	/* local of code signature */
-    SEGMENT_SPLIT_INFO = 0x1e,  /* local of info to split segments */
-    REEXPORT_DYLIB = (0x1f | LC_REQ_DYLD), /* load and re-export dylib */
-    LAZY_LOAD_DYLIB = 0x20, 	/* delay load of dylib until first use */
-    ENCRYPTION_INFO = 0x21, 	/* encrypted segment information */
-    DYLD_INFO = 0x22, 	/* compressed dyld information */
-    DYLD_INFO_ONLY = (0x22 | LC_REQ_DYLD),	/* compressed dyld information only */
-    LOAD_UPWARD_DYLIB = (0x23 | LC_REQ_DYLD), /* load upward dylib */
-    VERSION_MIN_MACOSX = 0x24,    /* build for MacOSX min OS version */
-    VERSION_MIN_IPHONEOS = 0x25,  /* build for iPhoneOS min OS version */
-    FUNCTION_STARTS = 0x26,  /* compressed table of function start addresses */
-    DYLD_ENVIRONMENT = 0x27,  /* string for dyld to treat
+    LC_ROUTINES_64 = 0x1a, 	/* 64-bit image routines */
+    LC_UUID = 0x1b, 	/* the uuid */
+    LC_RPATH = (0x1c | LC_REQ_DYLD),    /* runpath additions */
+    LC_CODE_SIGNATURE = 0x1d, 	/* local of code signature */
+    LC_SEGMENT_SPLIT_INFO = 0x1e,  /* local of info to split segments */
+    LC_REEXPORT_DYLIB = (0x1f | LC_REQ_DYLD), /* load and re-export dylib */
+    LC_LAZY_LOAD_DYLIB = 0x20, 	/* delay load of dylib until first use */
+    LC_ENCRYPTION_INFO = 0x21, 	/* encrypted segment information */
+    LC_DYLD_INFO = 0x22, 	/* compressed dyld information */
+    LC_DYLD_INFO_ONLY = (0x22 | LC_REQ_DYLD),	/* compressed dyld information only */
+    LC_LOAD_UPWARD_DYLIB = (0x23 | LC_REQ_DYLD), /* load upward dylib */
+    LC_VERSION_MIN_MACOSX = 0x24,    /* build for MacOSX min OS version */
+    LC_VERSION_MIN_IPHONEOS = 0x25,  /* build for iPhoneOS min OS version */
+    LC_FUNCTION_STARTS = 0x26,  /* compressed table of function start addresses */
+    LC_DYLD_ENVIRONMENT = 0x27,  /* string for dyld to treat
 				    like environment variable */
-    MAIN = (0x28|LC_REQ_DYLD), /* replacement for LC_UNIXTHREAD */
-    DATA_IN_CODE = 0x29,  /* table of non-instructions in __text */
-    SOURCE_VERSION = 0x2A,  /* source version used to build binary */
-    DYLIB_CODE_SIGN_DRS = 0x2B,  /* Code signing DRs copied from linked dylibs */
-    ENCRYPTION_INFO_64 = 0x2C,  /* 64-bit encrypted segment information */
-    LINKER_OPTION = 0x2D,  /* linker options in MH_OBJECT files */
-    LINKER_OPTIMIZATION_HINT = 0x2E,  /* optimization hints in MH_OBJECT files */
-    VERSION_MIN_TVOS = 0x2F,  /* build for AppleTV min OS version */
-    VERSION_MIN_WATCHOS = 0x30,  /* build for Watch min OS version */
-    NOTE = 0x31,  /* arbitrary data included within a Mach-O file */
+    LC_MAIN = (0x28|LC_REQ_DYLD), /* replacement for LC_UNIXTHREAD */
+    LC_DATA_IN_CODE = 0x29,  /* table of non-instructions in __text */
+    LC_SOURCE_VERSION = 0x2A,  /* source version used to build binary */
+    LC_DYLIB_CODE_SIGN_DRS = 0x2B,  /* Code signing DRs copied from linked dylibs */
+    LC_ENCRYPTION_INFO_64 = 0x2C,  /* 64-bit encrypted segment information */
+    LC_LINKER_OPTION = 0x2D,  /* linker options in MH_OBJECT files */
+    LC_LINKER_OPTIMIZATION_HINT = 0x2E,  /* optimization hints in MH_OBJECT files */
+    LC_VERSION_MIN_TVOS = 0x2F,  /* build for AppleTV min OS version */
+    LC_VERSION_MIN_WATCHOS = 0x30,  /* build for Watch min OS version */
+    LC_NOTE = 0x31,  /* arbitrary data included within a Mach-O file */
 };
 
 const char* LoadCmdStr(LoadCmds cmd);
@@ -323,20 +327,21 @@ std::ifstream& readInto(std::ifstream& file, T* dest)
 class fat_header {
 public:
   fat_header();
+  fat_header(std::ifstream& file);
 
   Magic magicRaw() const;
   Magic magic() const;
   bool isBigEndian() const;
-  std::ifstream& operator<<(std::ifstream& file) {
-    return readInto<fat_header>(file, this);
-  }
+  uint32_t nfat_arch() const;
 private:
 	Magic	    m_magic;      /* FAT_MAGIC */
 	uint32_t	m_nfat_arch;  /* number of structs that follow */
 };
 
 struct fat_arch {
-	cpu_type_t	cputype;	/* cpu specifier (int) */
+  fat_arch();
+  fat_arch(std::ifstream& file);
+	CpuType	cputype;	/* cpu specifier (int) */
 	cpu_subtype_t	cpusubtype;	/* machine specifier (int) */
 	uint32_t	offset;		/* file offset to this object file */
 	uint32_t	size;		/* size of this object file */
@@ -349,22 +354,19 @@ class mach_header_32
 public:
   mach_header_32();
   mach_header_32(std::ifstream& file);
-  Magic magicRaw() const;     // the magic marker, not accounted for endianness
-  Magic magic() const;        // the magic marker, determines
-  CpuType cputype() const;    // the cputype
-  cpu_subtype_t cpusubtype() const; // subtype, machine type
-  FileType filetype() const;  // type of file
-  uint32_t ncmds() const;     // num of lod commands
-  uint32_t sizeofcmds() const; // size of all load commands, may vary
+  Magic magic() const { return m_magic; };        // the magic marker, determines
+  CpuType cputype() const { return m_cputype; }    // the cputype
+  cpu_subtype_t cpusubtype() const { return m_cpusubtype; } // subtype, machine type
+  FileType filetype() const { return m_filetype; }  // type of file
+  uint32_t ncmds() const { return m_ncmds; }     // num of lod commands
+  uint32_t sizeofcmds() const { return m_sizeofcmds; } // size of all load commands, may vary
   bool isBigEndian() const;
   bool is64bits() const;
-
-  std::ifstream& operator<<(std::ifstream& file) {
-    return readInto<mach_header_32>(file, this);
-  }
+  std::ofstream& operator>>(std::ofstream& file) const;
 
 protected:
   uint32_t convertEndian(uint32_t) const;
+  void endian();
 
 	Magic         m_magic;		      // magic number identifier
 	CpuType	      m_cputype;	      // cpu type
@@ -379,11 +381,8 @@ class mach_header_64 : public mach_header_32 {
 public:
   mach_header_64();
   mach_header_64(std::ifstream& file);
-  uint32_t reserved() const;
-
-  std::ifstream& operator<<(std::ifstream& file) {
-    return readInto<mach_header_64>(file, this);
-  }
+  uint32_t reserved() const { return m_reserved; }
+  std::ofstream& operator>>(std::ofstream& file) const;
 
 private:
   uint32_t      m_reserved;       // not used?
@@ -397,10 +396,13 @@ private:
  * Once again any padded bytes to bring the cmdsize field to a multiple
  * of 4 bytes must be zero.
  */
-union lc_str {
+typedef union _lcStr
+{
+  _lcStr();
+  _lcStr(const char* bytes, const mach_object* obj);
 	uint32_t	offset;	/* offset to the string */
 	char		*ptr64bit;	/* pointer to the string, only on 64bit targets */
-};
+} lc_str ;
 
 /**
  * Load commands follow directly after header. Total size of load
@@ -422,27 +424,37 @@ struct load_command
 {
   load_command();
   load_command(const load_command_bytes& cmd);
-  LoadCmds cmd;        // the type of command
-  uint32_t cmdsize;    // size of this command including
+  LoadCmds cmd() const { return m_cmd; }
+  uint32_t cmdsize() const { return m_cmdsize; }
+protected:
+  LoadCmds m_cmd;        // the type of command
+  uint32_t m_cmdsize;    // size of this command including
 };
 
 struct load_command_bytes : load_command
 {
   load_command_bytes();
-  load_command_bytes(mach_object* owner);
+  //load_command_bytes(mach_object* owner);
+  load_command_bytes(std::ifstream& file, mach_object& owner);
   std::unique_ptr<char[]> bytes;
-  mach_object* owner;
-  std::ifstream& operator<<(std::ifstream& file);
-  uint32_t bytessize() const;
+  //mach_object* owner;
 };
 
 // used by LC_LOAD_DYLIB, LC_LOAD_WEK_DYLIB and LC_REEXPORT_DYLIB
-struct dylib
+struct dylib_command : load_command
 {
-  union lc_str  name;			/* library's path name */
-  uint32_t timestamp;			/* library's build time stamp */
-  uint32_t current_version;		/* library's current version number */
-  uint32_t compatibility_version;	/* library's compatibility vers number*/
+  dylib_command();
+  dylib_command(const load_command_bytes& from, const mach_object& obj);
+  lc_str name() const  { return m_name; }
+  uint32_t timestamp() const { return m_timestamp; }
+  uint32_t current_version() const { return m_current_version; }
+  uint32_t compatibility_version() const { return m_compatibility_version; }
+
+private:
+  lc_str  m_name;			/* library's path name */
+  uint32_t m_timestamp;			/* library's build time stamp */
+  uint32_t m_current_version;		/* library's current version number */
+  uint32_t m_compatibility_version;	/* library's compatibility vers number*/
 };
 
 /*
@@ -458,16 +470,29 @@ struct dylib
  * reflected in cmdsize.
  */
 struct segment_command : load_command { /* for 32-bit architectures */
-  segment_command(const load_command_bytes& cmd);
-	char		segname[16];	/* segment name */
-	uint32_t	vmaddr;		/* memory address of this segment */
-	uint32_t	vmsize;		/* memory size of this segment */
-	uint32_t	fileoff;	/* file offset of this segment */
-	uint32_t	filesize;	/* amount to map from the file */
-	vm_prot_t	maxprot;	/* maximum VM protection */
-	vm_prot_t	initprot;	/* initial VM protection */
-	uint32_t	nsects;		/* number of sections in segment */
-	uint32_t	flags;		/* flags */
+  segment_command(const load_command_bytes& cmd, const mach_object& obj);
+  const char* segname() const { return m_segname; }
+  uint32_t vmaddr() const { return m_vmaddr; }
+  uint32_t vmsize() const { return m_vmsize; }
+  uint32_t fileoff() const { return m_fileoff; }
+  uint32_t filesize() const { return m_filesize; }
+  vm_prot_t maxprot() const { return m_maxprot; }
+  vm_prot_t initprot() const { return m_initprot; }
+  uint32_t nsects() const { return m_nsects; }
+  uint32_t flags() const { return m_flags; }
+
+  enum {SZ_SEGNAME = 16};
+
+private:
+	char		m_segname[SZ_SEGNAME];	/* segment name */
+	uint32_t	m_vmaddr;		/* memory address of this segment */
+	uint32_t	m_vmsize;		/* memory size of this segment */
+	uint32_t	m_fileoff;	/* file offset of this segment */
+	uint32_t	m_filesize;	/* amount to map from the file */
+	vm_prot_t	m_maxprot;	/* maximum VM protection */
+	vm_prot_t	m_initprot;	/* initial VM protection */
+	uint32_t	m_nsects;		/* number of sections in segment */
+	uint32_t	m_flags;		/* flags */
 };
 
 /*
@@ -477,50 +502,72 @@ struct segment_command : load_command { /* for 32-bit architectures */
  * command and their size is reflected in cmdsize.
  */
 struct segment_command_64 : load_command { /* for 64-bit architectures */
-  segment_command_64(const load_command_bytes& cmd);
-	char		segname[16];	/* segment name */
-	uint64_t	vmaddr;		/* memory address of this segment */
-	uint64_t	vmsize;		/* memory size of this segment */
-	uint64_t	fileoff;	/* file offset of this segment */
-	uint64_t	filesize;	/* amount to map from the file */
-	vm_prot_t	maxprot;	/* maximum VM protection */
-	vm_prot_t	initprot;	/* initial VM protection */
-	uint32_t	nsects;		/* number of sections in segment */
-	uint32_t	flags;		/* flags */
+  segment_command_64(const load_command_bytes& cmd, const mach_object& obj);
+  const char* segname() const { return m_segname; }
+  uint64_t vmaddr() const { return m_vmaddr; }
+  uint64_t vmsize() const { return m_vmsize; }
+  uint64_t fileoff() const { return m_fileoff; }
+  uint64_t filesize() const { return m_filesize; }
+  vm_prot_t maxprot() const { return m_maxprot; }
+  vm_prot_t initprot() const { return m_initprot; }
+  uint32_t nsects() const { return m_nsects; }
+  uint32_t flags() const { return m_flags; }
+
+private:
+	char		m_segname[16];	/* segment name */
+	uint64_t	m_vmaddr;		/* memory address of this segment */
+	uint64_t	m_vmsize;		/* memory size of this segment */
+	uint64_t	m_fileoff;	/* file offset of this segment */
+	uint64_t	m_filesize;	/* amount to map from the file */
+	vm_prot_t	m_maxprot;	/* maximum VM protection */
+	vm_prot_t	m_initprot;	/* initial VM protection */
+	uint32_t	m_nsects;		/* number of sections in segment */
+	uint32_t	m_flags;		/* flags */
 };
 
 struct section { /* for 32-bit architectures */
   section();
-  section(std::ifstream& file, mach_object& owner);
-	char		sectname[16];	/* name of this section */
-	char		segname[16];	/* segment this section goes in */
-	uint32_t	addr;		/* memory address of this section */
-	uint32_t	size;		/* size in bytes of this section */
-	uint32_t	offset;		/* file offset of this section */
-	uint32_t	align;		/* section alignment (power of 2) */
-	uint32_t	reloff;		/* file offset of relocation entries */
-	uint32_t	nreloc;		/* number of relocation entries */
-	uint32_t	flags;		/* flags (section type and attributes)*/
-	uint32_t	reserved1;	/* reserved (for offset or index) */
-	uint32_t	reserved2;	/* reserved (for count or sizeof) */
+  section(const char* bytes, const mach_object& obj);
+  const char* sectname() const { return m_sectname; }
+  const char* segname()  const { return m_segname; }
+  uint32_t addr() const { return m_addr; }
+  uint32_t size() const { return m_size; }
+  uint32_t offset() const { return m_offset; }
+  uint32_t align() const { return m_align; }
+  uint32_t reloff() const { return m_reloff; }
+  uint32_t nreloc() const { return m_nreloc; }
+  uint32_t flags() const { return m_flags; }
+  uint32_t reserved1() const { return m_reserved1; }
+  uint32_t reserved2() const { return m_reserved2; }
 
+private:
+	char		m_sectname[16];	/* name of this section */
+	char		m_segname[16];	/* segment this section goes in */
+	uint32_t	m_addr;		/* memory address of this section */
+	uint32_t	m_size;		/* size in bytes of this section */
+	uint32_t	m_offset;		/* file offset of this section */
+	uint32_t	m_align;		/* section alignment (power of 2) */
+	uint32_t	m_reloff;		/* file offset of relocation entries */
+	uint32_t	m_nreloc;		/* number of relocation entries */
+	uint32_t	m_flags;		/* flags (section type and attributes)*/
+	uint32_t	m_reserved1;	/* reserved (for offset or index) */
+	uint32_t	m_reserved2;	/* reserved (for count or sizeof) */
 };
 
 struct section_64 : section { /* for 64-bit architectures */
   section_64();
-  section_64(std::ifstream& file, mach_object& owner);
-	uint32_t	reserved3;	/* reserved */
-  std::ifstream& operator<<(std::ifstream& file) {
-    return readInto<section_64>(file, this);
-  }
+  section_64(const char* bytes, const mach_object& obj);
+  uint32_t reserved3() const { return m_reserved3; }
+
+private:
+	uint32_t	m_reserved3;	/* reserved */
 };
-
-
 
 // ---------------------------------------------------------------
 
 class mach_object {
 public:
+  mach_object();
   mach_object(std::ifstream& file);
   bool isBigEndian() const;
   bool is64bits() const;
@@ -550,29 +597,13 @@ private:
   void readHdr(std::ifstream& file);
   void readCmds(std::ifstream& file);
   void readData(std::ifstream& file);
-  void readLcStr(
-    lc_str& lcStr, const char* buf) const;
   std::vector<Path> searchForDylibs(LoadCmds type) const;
   size_t fileoff() const;
 
-
+  const std::streampos m_startpos;
   std::unique_ptr<mach_header_32> m_hdr;
   std::vector<load_command_bytes> m_load_cmds;
   std::vector<std::unique_ptr<data_segment>> m_data_segments;
-};
-
-class fat_object {
-public:
-  fat_object(std::ifstream & file);
-  bool isBigEndian() const;
-  const std::vector<fat_arch>& fatArch() const;
-  const fat_header& header() const;
-  const std::vector<mach_object>& object() const;
-
-private:
-  fat_header m_hdr;
-  std::vector<fat_arch> m_fat_arch;
-  std::vector<mach_object> m_objs;
 };
 
 // ------------------------------------------------------------------
@@ -581,31 +612,73 @@ private:
 class data_segment {
 public:
   data_segment();
-  data_segment(std::ifstream& file, const load_command_bytes& cmd);
+  data_segment(
+    std::ifstream& file,
+    const load_command_bytes& cmd,
+    const mach_object& obj);
 
-  char segname[sizeof(segment_command::segname)];
-  uint64_t filesize;
-  uint64_t fileoff;
-  std::unique_ptr<char[]> bytes;
+  const char* segname() const { return m_segname; }
+  uint64_t filesize() const { return m_filesize; }
+  uint64_t fileoff() const { return m_fileoff; }
+
 
 private:
+  char m_segname[segment_command::SZ_SEGNAME];
+  uint64_t m_filesize;
+  uint64_t m_fileoff;
+  std::unique_ptr<char[]> bytes;
+
   template<typename T, typename U>
-    void read_into(std::ifstream& file, const load_command_bytes& cmd)
+    void read_into(
+      std::ifstream& file,
+      const load_command_bytes& cmd,
+      const mach_object& obj)
   {
-    T seg{cmd};
-    memcpy((void*)segname, (void*)seg.segname, sizeof(seg.segname));
-    fileoff = seg.fileoff;
-    filesize = seg.filesize;
+    T seg{cmd, obj};
+    memcpy((void*)this->m_segname, (void*)seg.segname(), sizeof(m_segname));
+    m_fileoff = seg.fileoff();
+    m_filesize = seg.filesize();
 
-    file.seekg(cmd.owner->endian(fileoff));
+    file.seekg(m_fileoff);
 
-    std::streampos sz = cmd.owner->endian<U>(filesize);
+    std::streampos sz = m_filesize;
     bytes = std::make_unique<char[]>(sz);
     if (file.readsome(bytes.get(), sz) != sz) {
       file.setstate(std::ios::badbit);
       return;
     }
   }
+};
+
+// -------------------------------------------------
+
+class mach_fat_object
+{
+public:
+  mach_fat_object();
+  mach_fat_object(std::ifstream& file);
+
+  const std::vector<mach_object>& objects() const;
+  const std::vector<fat_arch>& architectures() const;
+  bool isBigEndian() const;
+
+  bool failure() const;
+
+  template<typename T>
+    T endian(T in) const
+  {
+    if constexpr(hostIsBigEndian)
+      return isBigEndian() ? in : reverseEndian<T>(in);
+    else
+      return isBigEndian() ? reverseEndian<T>(in) : in;
+  }
+
+private:
+  void fail();
+
+  std::unique_ptr<fat_header> m_hdr;
+  std::vector<fat_arch> m_fat_arch;
+  std::vector<mach_object> m_objects;
 };
 
 

@@ -25,6 +25,8 @@ THE SOFTWARE.
 #include <fstream>
 #include <iostream>
 #include <cstring>
+#include <cassert>
+#include <cmath>
 #include "MachO.h"
 #include "Types.h"
 
@@ -45,22 +47,79 @@ static uint32_t readMagic(std::ifstream& file)
 using namespace MachO;
 
 const char*
-FiletypeStr(FileType type)
+MachO::FiletypeStr(FileType type)
 {
   switch (type) {
-  case MH_OBJECT: return "MH_OBJECT";
-  case MH_EXECUTE: return "MH_EXECUTE";
-  case MH_FVMLIB: return "MH_FVMLIB";
-  case MH_CORE: return "MH_CORE";
-  case MH_PRELOAD: return "MH_PRELOAD";
-  case MH_DYLIB: return "MH_DYLIB";
-  case MH_DYLINKER: return "MH_DYLINKER";
-  case MH_BUNDLE: return "MH_BUNDLE";
-  case MH_DYLIB_STUB: return "MH_DYLIB_STUB";
-  case MH_DSYM: return "MH_DSYM";
-  case MH_KEXT_BUNDLE: return "MH_KEXT_BUNDLE";
+  case MH_OBJECT:       return "MH_OBJECT";
+  case MH_EXECUTE:      return "MH_EXECUTE";
+  case MH_FVMLIB:       return "MH_FVMLIB";
+  case MH_CORE:         return "MH_CORE";
+  case MH_PRELOAD:      return "MH_PRELOAD";
+  case MH_DYLIB:        return "MH_DYLIB";
+  case MH_DYLINKER:     return "MH_DYLINKER";
+  case MH_BUNDLE:       return "MH_BUNDLE";
+  case MH_DYLIB_STUB:   return "MH_DYLIB_STUB";
+  case MH_DSYM:         return "MH_DSYM";
+  case MH_KEXT_BUNDLE:  return "MH_KEXT_BUNDLE";
   }
-  return "MH_UNKNOWN";
+  return "MH_FILETYPE_UNKNOWN";
+}
+
+const char*
+MachO::FlagsStr(Flags flag)
+{
+  switch (flag) {
+  /* Constants for the flags field of the mach_header */
+  case MH_NOUNDEFS:                 return "MH_NOUNDEFS";
+  case MH_INCRLINK:                 return "MH_INCRLINK";
+  case MH_DYLDLINK:                 return "MH_DYLDLINK";
+  case MH_BINDATLOAD:               return "MH_BINDATLOAD";
+  case MH_PREBOUND:                 return "MH_PREBOUND";
+  case MH_SPLIT_SEGS:               return "MH_SPLIT_SEGS";
+  case MH_LAZY_INIT:                return "MH_LAZY_INIT";
+  case MH_TWOLEVEL:                 return "MH_TWOLEVEL";
+  case MH_FORCE_FLAT:               return "MH_FORCE_FLAT";
+  case MH_NOMULTIDEFS:              return "MH_NOMULTIDEFS";
+  case MH_NOFIXPREBINDING:          return "MH_NOFIXPREBINDING";
+  case MH_PREBINDABLE:              return "MH_PREBINDABLE";
+  case MH_ALLMODSBOUND:             return "MH_ALLMODSBOUND";
+  case MH_SUBSECTIONS_VIA_SYMBOLS:  return "MH_SUBSECTIONS_VIA_SYMBOLS";
+  case MH_CANONICAL:                return "MH_CANONICAL";
+  case MH_WEAK_DEFINES:             return "MH_WEAK_DEFINES";
+  case MH_BINDS_TO_WEAK:            return "MH_BINDS_TO_WEAK";
+  case MH_ALLOW_STACK_EXECUTION:    return "MH_ALLOW_STACK_EXECUTION";
+  case MH_ROOT_SAFE:                return "MH_ROOT_SAFE";
+  case MH_SETUID_SAFE:              return "MH_SETUID_SAFE";
+  case MH_NO_REEXPORTED_DYLIBS:     return "MH_NO_REEXPORTED_DYLIBS";
+  case MH_PIE:                      return "MH_PIE";
+  case MH_DEAD_STRIPPABLE_DYLIB:    return "MH_DEAD_STRIPPABLE_DYLIB";
+  case MH_HAS_TLV_DESCRIPTORS:      return "MH_HAS_TLV_DESCRIPTORS";
+  case MH_NO_HEAP_EXECUTION:        return "MH_NO_HEAP_EXECUTION";
+  case MH_APP_EXTENSION_SAFE:       return "MH_APP_EXTENSION_SAFE";
+  }
+  return "MH_FLAG_UNKNOWN";
+}
+
+const char*
+MachO::CpuTypeStr(CpuType type)
+{
+  switch (type) {
+  case MH_ANY:       return "MH_ANY";
+  case MH_VAX:       return "MH_VAX";
+  case MH_MC680x0:   return "MH_MC680x0";
+  case MH_X86:       return "MH_X86";
+  case MH_X86_64:    return "MH_X86_64";
+  case MH_MC98000:   return "MH_MC98000";
+  case MH_HPPA:      return "MH_HPPA";
+  case MH_ARM:       return "MH_ARM";
+  case MH_ARM64:     return "MH_ARM64";
+  case MH_MC88000:   return "MH_MC88000";
+  case MH_SPARC:     return "MH_SPARC";
+  case MH_I860:      return "MH_I860";
+  case MH_POWERPC:   return "MH_POWERPC";
+  case MH_POWERPC64: return "MH_POWERPC64";
+  }
+  return "MH_CPU_UNKNOWN";
 }
 
 
@@ -68,56 +127,56 @@ const char*
 MachO::LoadCmdStr(LoadCmds cmd)
 {
   switch (cmd) {
-  case SEGMENT: return "LC_SEGMENT";
-  case SYMTAB: return "LC_SYMTAB";
-  case SYMSEG: return "LC_SYMSEG";
-  case THREAD: return "LC_THREAD";
-  case UNIXTHREAD: return "LC_UNIXTHREAD";
-  case LOADFVMLIB: return "LC_LOADFVMLIB";
-  case IDFVMLIB: return "LC_IDFVMLIB";
-  case IDENT: return "LC_IDENT";
-  case FVMFILE: return "LC_FVMFILE";
-  case PREPAGE: return "LC_PREPAGE";
-  case DYSYMTAB: return "LC_DYSYMTAB";
-  case LOAD_DYLIB: return "LC_LOAD_DYLIB";
-  case ID_DYLIB: return "LC_ID_DYLIB";
-  case LOAD_DYLINKER: return "LC_LOAD_DYLINKER";
-  case ID_DYLINKER: return "LC_ID_DYLINKER";
-  case PREBOUND_DYLIB: return "LC_PREBOUND_DYLIB";
-  case ROUTINES: return "LC_ROUTINES";
-  case SUB_FRAMEWORK: return "LC_SUB_FRAMEWORK";
-  case SUB_UMBRELLA: return "LC_SUB_UMBRELLA";
-  case SUB_CLIENT: return "LC_SUB_CLIENT";
-  case SUB_LIBRARY: return "LC_SUB_LIBRARY";
-  case TWOLEVEL_HINTS: return "LC_TWOLEVEL_HINTS";
-  case PREBIND_CKSUM: return "LC_PREBIND_CKSUM";
-  case LOAD_WEAK_DYLIB: return "LC_LOAD_WEAK_DYLIB";
-  case SEGMENT_64: return "LC_SEGMENT_64";
-  case ROUTINES_64: return "LC_ROUTINES_64";
-  case UUID: return "LC_UUID";
-  case RPATH: return "LC_RPATH";
-  case CODE_SIGNATURE: return "LC_CODE_SIGNATURE";
-  case SEGMENT_SPLIT_INFO: return "LC_SEGMENT_SPLIT_INFO";
-  case REEXPORT_DYLIB: return "LC_REEXPORT_DYLIB";
-  case LAZY_LOAD_DYLIB: return "LC_LAZY_LOAD_DYLIB";
-  case ENCRYPTION_INFO: return "LC_ENCRYPTION_INFO";
-  case DYLD_INFO: return "LC_DYLD_INFO";
-  case DYLD_INFO_ONLY: return "LC_DYLD_INFO_ONLY";
-  case LOAD_UPWARD_DYLIB: return "LC_LOAD_UPWARD_DYLIB";
-  case VERSION_MIN_MACOSX: return "LC_VERSION_MIN_MACOSX";
-  case VERSION_MIN_IPHONEOS: return "LC_VERSION_MIN_IPHONEOS";
-  case FUNCTION_STARTS: return "LC_FUNCTION_STARTS";
-  case DYLD_ENVIRONMENT: return "LC_DYLD_ENVIRONMENT";
-  case MAIN: return "LC_MAIN";
-  case DATA_IN_CODE: return "LC_DATA_IN_CODE";
-  case SOURCE_VERSION: return "LC_SOURCE_VERSION";
-  case DYLIB_CODE_SIGN_DRS: return "LC_DYLIB_CODE_SIGN_DRS";
-  case ENCRYPTION_INFO_64: return "LC_ENCRYPTION_INFO_64";
-  case LINKER_OPTION: return "LC_LINKER_OPTION";
-  case LINKER_OPTIMIZATION_HINT: return "LC_LINKER_OPTIMIZATION_HINT";
-  case VERSION_MIN_TVOS: return "LC_VERSION_MIN_TVOS";
-  case VERSION_MIN_WATCHOS: return "LC_VERSION_MIN_WATCHOS";
-  case NOTE: return "LC_NOTE";
+  case LC_SEGMENT:                   return "LC_SEGMENT";
+  case LC_SYMTAB:                    return "LC_SYMTAB";
+  case LC_SYMSEG:                    return "LC_SYMSEG";
+  case LC_THREAD:                    return "LC_THREAD";
+  case LC_UNIXTHREAD:                return "LC_UNIXTHREAD";
+  case LC_LOADFVMLIB:                return "LC_LOADFVMLIB";
+  case LC_IDFVMLIB:                  return "LC_IDFVMLIB";
+  case LC_IDENT:                     return "LC_IDENT";
+  case LC_FVMFILE:                   return "LC_FVMFILE";
+  case LC_PREPAGE:                   return "LC_PREPAGE";
+  case LC_DYSYMTAB:                  return "LC_DYSYMTAB";
+  case LC_LOAD_DYLIB:                return "LC_LOAD_DYLIB";
+  case LC_ID_DYLIB:                  return "LC_ID_DYLIB";
+  case LC_LOAD_DYLINKER:             return "LC_LOAD_DYLINKER";
+  case LC_ID_DYLINKER:               return "LC_ID_DYLINKER";
+  case LC_PREBOUND_DYLIB:            return "LC_PREBOUND_DYLIB";
+  case LC_ROUTINES:                  return "LC_ROUTINES";
+  case LC_SUB_FRAMEWORK:             return "LC_SUB_FRAMEWORK";
+  case LC_SUB_UMBRELLA:              return "LC_SUB_UMBRELLA";
+  case LC_SUB_CLIENT:                return "LC_SUB_CLIENT";
+  case LC_SUB_LIBRARY:               return "LC_SUB_LIBRARY";
+  case LC_TWOLEVEL_HINTS:            return "LC_TWOLEVEL_HINTS";
+  case LC_PREBIND_CKSUM:             return "LC_PREBIND_CKSUM";
+  case LC_LOAD_WEAK_DYLIB:           return "LC_LOAD_WEAK_DYLIB";
+  case LC_SEGMENT_64:                return "LC_SEGMENT_64";
+  case LC_ROUTINES_64:               return "LC_ROUTINES_64";
+  case LC_UUID:                      return "LC_UUID";
+  case LC_RPATH:                     return "LC_RPATH";
+  case LC_CODE_SIGNATURE:            return "LC_CODE_SIGNATURE";
+  case LC_SEGMENT_SPLIT_INFO:        return "LC_SEGMENT_SPLIT_INFO";
+  case LC_REEXPORT_DYLIB:            return "LC_REEXPORT_DYLIB";
+  case LC_LAZY_LOAD_DYLIB:           return "LC_LAZY_LOAD_DYLIB";
+  case LC_ENCRYPTION_INFO:           return "LC_ENCRYPTION_INFO";
+  case LC_DYLD_INFO:                 return "LC_DYLD_INFO";
+  case LC_DYLD_INFO_ONLY:            return "LC_DYLD_INFO_ONLY";
+  case LC_LOAD_UPWARD_DYLIB:         return "LC_LOAD_UPWARD_DYLIB";
+  case LC_VERSION_MIN_MACOSX:        return "LC_VERSION_MIN_MACOSX";
+  case LC_VERSION_MIN_IPHONEOS:      return "LC_VERSION_MIN_IPHONEOS";
+  case LC_FUNCTION_STARTS:           return "LC_FUNCTION_STARTS";
+  case LC_DYLD_ENVIRONMENT:          return "LC_DYLD_ENVIRONMENT";
+  case LC_MAIN:                      return "LC_MAIN";
+  case LC_DATA_IN_CODE:              return "LC_DATA_IN_CODE";
+  case LC_SOURCE_VERSION:            return "LC_SOURCE_VERSION";
+  case LC_DYLIB_CODE_SIGN_DRS:       return "LC_DYLIB_CODE_SIGN_DRS";
+  case LC_ENCRYPTION_INFO_64:        return "LC_ENCRYPTION_INFO_64";
+  case LC_LINKER_OPTION:             return "LC_LINKER_OPTION";
+  case LC_LINKER_OPTIMIZATION_HINT:  return "LC_LINKER_OPTIMIZATION_HINT";
+  case LC_VERSION_MIN_TVOS:          return "LC_VERSION_MIN_TVOS";
+  case LC_VERSION_MIN_WATCHOS:       return "LC_VERSION_MIN_WATCHOS";
+  case LC_NOTE:                      return "LC_NOTE";
   }
   return "LC_UNKNOWN";
 }
@@ -129,6 +188,10 @@ fat_header::fat_header()
   , m_nfat_arch{0}
 {}
 
+fat_header::fat_header(std::ifstream& file)
+{
+  readInto<fat_header>(file, this);
+}
 
 Magic
 fat_header::magicRaw() const
@@ -155,9 +218,29 @@ fat_header::isBigEndian() const
   return m_magic == FatCigam;
 }
 
+uint32_t
+fat_header::nfat_arch() const
+{
+  if constexpr(hostIsBigEndian)
+    return isBigEndian() ? m_nfat_arch : reverseEndian(m_nfat_arch);
+  else
+    return isBigEndian() ? reverseEndian(m_nfat_arch) : m_nfat_arch;
+}
+
 // -----------------------------------------------------------
 
+fat_arch::fat_arch()
+  : cputype{0}
+  , cpusubtype{0}
+  , offset{0}
+  , size{0}
+  , align{0}
+{}
 
+fat_arch::fat_arch(std::ifstream& file)
+{
+  readInto<fat_arch>(file, this);
+}
 
 // -----------------------------------------------------------
 
@@ -180,9 +263,22 @@ mach_header_32::mach_header_32(std::ifstream& file)
   , m_sizeofcmds{0}
   , m_flags{0}
 {
-  *this << file;
+  readInto<mach_header_32>(file, this);
+  endian();
 }
 
+void
+mach_header_32::endian()
+{
+  if (m_magic != Magic32 && m_magic != Magic64) {
+    // all items i header these are 32 bits
+    // dont touch the magic though, used to check endianness
+    uint32_t* buf = (uint32_t*)this;
+    constexpr size_t end = sizeof(mach_header_32)/sizeof(uint32_t);
+    for (size_t i = 1; i < end ; ++i)
+      buf[i] = reverseEndian(buf[i]);
+  }
+}
 
 bool
 mach_header_32::isBigEndian() const {
@@ -197,56 +293,16 @@ mach_header_32::is64bits() const
   return m_magic == Magic64 || m_magic == Cigam64;
 }
 
-Magic
-mach_header_32::magicRaw() const     // the magic marker, not accounted for endianness
+std::ofstream&
+mach_header_32::operator>>(std::ofstream& file) const
 {
-  return m_magic;
-}
-
-Magic
-mach_header_32::magic() const        // the magic marker, determines
-{
-  return (Magic)convertEndian(m_magic);
-}
-
-CpuType
-mach_header_32::cputype() const    // the cputype
-{
-  return (CpuType)convertEndian(m_cputype);
-}
-
-cpu_subtype_t
-mach_header_32::cpusubtype() const // subtype, machine type
-{
-  return (cpu_subtype_t)convertEndian(m_cpusubtype);
-}
-
-FileType
-mach_header_32::filetype() const  // type of file
-{
-  return (FileType)convertEndian(m_filetype);
-}
-
-uint32_t
-mach_header_32::ncmds() const     // num of lod commands
-{
-  return (uint32_t)convertEndian(m_ncmds);
-}
-
-uint32_t
-mach_header_32::sizeofcmds() const // size of all load commands, may vary
-{
-  return (uint32_t)convertEndian(m_sizeofcmds);
-}
-
-
-uint32_t
-mach_header_32::convertEndian(uint32_t in) const
-{
-  if constexpr(hostIsBigEndian)
-    return isBigEndian() ? in : reverseEndian<uint32_t>(in);
-  else
-    return isBigEndian() ? reverseEndian<uint32_t>(in) : in;
+  mach_header_32 out{};
+  memcpy((void*)&out, (void*)this, sizeof(mach_header_32));
+  out.endian();
+  file << out.m_magic << out.m_cputype << out.m_cpusubtype
+       << out.m_filetype << out.m_ncmds << out.m_sizeofcmds
+       << out.m_flags;
+  return file;
 }
 
 // ----------------------------------------------------------
@@ -260,25 +316,51 @@ mach_header_64::mach_header_64(std::ifstream& file)
   : mach_header_32{}
   , m_reserved{0}
 {
-  *this << file;
+  readInto<mach_header_64>(file, this);
+  endian();
+  if (m_magic != Magic64)
+    m_reserved = reverseEndian(m_magic);
 }
 
-uint32_t
-mach_header_64::reserved() const
+std::ofstream&
+mach_header_64::operator>>(std::ofstream& file) const
 {
-  return convertEndian(m_reserved);
+  mach_header_64 out{};
+  memcpy((void*)&out, (void*)this, sizeof(mach_header_32));
+  out.endian();
+  file << out.m_magic << out.m_cputype << out.m_cpusubtype
+       << out.m_filetype << out.m_ncmds << out.m_sizeofcmds
+       << out.m_flags << out.m_reserved;
+  return file;
+}
+
+// -----------------------------------------------------------
+
+_lcStr::_lcStr()
+  : ptr64bit{nullptr}
+{}
+
+_lcStr::_lcStr(const char* bytes, const mach_object* obj)
+  : ptr64bit{nullptr}
+{
+  if (obj->is64bits()) {
+    uint64_t ofs = (uint64_t)bytes[0];
+    ptr64bit = (char*)obj->endian(ofs);
+  } else {
+    offset = (uint32_t)obj->endian((uint32_t)bytes[0]);
+  }
 }
 
 // -----------------------------------------------------------
 
 load_command::load_command()
-  : cmd{0}
-  , cmdsize{0}
+  : m_cmd{0}
+  , m_cmdsize{0}
 {}
 
 load_command::load_command(const load_command_bytes& cmd)
-  : cmd{cmd.cmd}
-  , cmdsize{cmd.cmdsize}
+  : m_cmd{cmd.cmd()}
+  , m_cmdsize{cmd.cmdsize()}
 {}
 
 // -----------------------------------------------------------
@@ -286,96 +368,153 @@ load_command::load_command(const load_command_bytes& cmd)
 load_command_bytes::load_command_bytes()
   : load_command{}
   , bytes{nullptr}
-  , owner{nullptr}
+  //, owner{nullptr}
 {}
 
+/*
 load_command_bytes::load_command_bytes(mach_object* owner)
   : load_command{}
   , bytes{nullptr}
-  , owner{owner}
-{}
+  //, owner{owner}
+{}*/
 
-std::ifstream&
-load_command_bytes::operator<<(std::ifstream& file)
-{
-  if (!file) return file;
+load_command_bytes::load_command_bytes(
+  std::ifstream& file, mach_object& obj
+) {
+  if (!file)
+    return;
+
   std::streamsize sz = sizeof(load_command);
   if (file.readsome((char*)this, sz) != sz) {
     std::cerr << "Failed to read header of LC_CMD\n";
     file.setstate(std::ios::badbit);
-    return file;
+    return;
   }
 
-  sz = owner->endian(cmdsize) - sz;
+  m_cmd = obj.endian(m_cmd);
+  m_cmdsize = obj.endian(m_cmdsize);
+
+  sz = m_cmdsize - sz;
   bytes = std::make_unique<char[]>(sz);
   if (file.readsome(bytes.get(), sz) != sz) {
     std::cerr << "Failed to read LC_CMD\n";
     file.setstate(std::ios::badbit);
-    return file;
+    return;
   }
 
-  auto cmdsz = owner->endian<uint32_t>(cmdsize);
-  bool is64Bit = owner->is64bits();
-  if ((cmdsz % 4) != 0 || (is64Bit && (cmdsz % 8) != 0)) {
+  bool is64Bit = obj.is64bits();
+  if ((m_cmdsize % 4) != 0 || (is64Bit && (m_cmdsize % 8) != 0)) {
     std::cerr << "Uneven loadCmd size, bad file, bailing out\n";
     file.setstate(std::ios::badbit);
-    return file;
+    return;
   }
-
-  return file;
-}
-
-uint32_t
-load_command_bytes::bytessize() const
-{
-  return owner->endian(cmdsize) - sizeof(load_command);
 }
 
 // -----------------------------------------------------------
 
-segment_command::segment_command(const load_command_bytes& cmd)
-  : load_command{cmd}
+dylib_command::dylib_command()
+  : m_name{}
+  , m_timestamp{0}
+  , m_current_version{0}
+  , m_compatibility_version{0}
+{}
+
+dylib_command::dylib_command(
+  const load_command_bytes& from, const mach_object& obj
+) : load_command{from}
 {
-  memcpy((void*)segname,  cmd.bytes.get(),
-    sizeof(segment_command_64) - sizeof(load_command));
+  memcpy((void*)&m_name, from.bytes.get(),
+          sizeof(dylib_command) - sizeof(load_command));
+  m_name.ptr64bit = obj.endian(m_name.ptr64bit);
+  m_timestamp = obj.endian(m_timestamp);
+  m_current_version = obj.endian(m_current_version);
+  m_compatibility_version = obj.endian(m_compatibility_version);
 }
 
-segment_command_64::segment_command_64(const load_command_bytes& cmd)
+// -----------------------------------------------------------
+
+segment_command::segment_command(
+  const load_command_bytes& cmd, const mach_object& obj
+)
   : load_command{cmd}
 {
-  memcpy((void*)segname, cmd.bytes.get(),
+  memcpy((void*)m_segname,  cmd.bytes.get(),
     sizeof(segment_command_64) - sizeof(load_command));
+  // endianness
+  uint32_t* buf = &m_vmaddr;
+  for (size_t i = 0; i < 4; ++i)
+    buf[i] = obj.endian(buf[i]);
+  m_maxprot = obj.endian(m_maxprot);
+  m_initprot = obj.endian(m_initprot);
+  m_nsects = obj.endian(m_nsects);
+  m_flags = obj.endian(m_flags);
+}
+
+segment_command_64::segment_command_64(
+  const load_command_bytes& cmd, const mach_object& obj
+)
+  : load_command{cmd}
+{
+  memcpy((void*)m_segname, cmd.bytes.get(),
+    sizeof(segment_command_64) - sizeof(load_command));
+  // endianess
+  uint64_t* buf = &m_vmaddr;
+  for (size_t i = 0; i < 4; ++i)
+    buf[i] = obj.endian(buf[i]);
+  m_maxprot = obj.endian(m_maxprot);
+  m_initprot = obj.endian(m_initprot);
+  m_nsects = obj.endian(m_nsects);
+  m_flags = obj.endian(m_flags);
 }
 
 // -----------------------------------------------------------
 
 section::section()
-  : sectname{0}
-  , segname{0}
-  , addr{0}
-  , size{0}
-  , offset{0}
-  , align{0}
-  , reloff{0}
-  , flags{0}
-  , reserved1{0}
-  , reserved2{0}
+  : m_sectname{0}
+  , m_segname{0}
+  , m_addr{0}
+  , m_size{0}
+  , m_offset{0}
+  , m_align{0}
+  , m_reloff{0}
+  , m_flags{0}
+  , m_reserved1{0}
+  , m_reserved2{0}
 {}
 
-section::section(std::ifstream& file, mach_object& owner)
+section::section(const char* bytes, const mach_object& obj)
 {
-  readInto<section>(file, this);
-  if (file) {
-    uint32_t ali = owner.endian<uint32_t>(align);
-    file.seekg(ali*2 + file.tellg());
-  }
+  memcpy((void*)this, (void*)bytes, sizeof(section));
+  uint32_t* buf = &m_addr;
+  for (size_t i = 0; i < 9; ++i)
+    buf[i] = obj.endian(buf[i]);
 }
-
 
 // -----------------------------------------------------------
 
+section_64::section_64()
+  : section{}
+  , m_reserved3{0}
+{}
+
+section_64::section_64(const char* bytes, const mach_object& obj)
+  : section(bytes, obj)
+{
+  m_reserved3 = obj.endian(m_reserved3);
+}
+
+// -----------------------------------------------------------
+
+mach_object::mach_object()
+  : m_startpos{0}
+  , m_hdr{}
+  , m_load_cmds{}
+  , m_data_segments{}
+{}
+
 mach_object::mach_object(std::ifstream& file)
-  : m_hdr{}
+  : m_startpos{file.tellg()}
+  , m_hdr{}
   , m_load_cmds{}
   , m_data_segments{}
 {
@@ -401,19 +540,21 @@ mach_object::is64bits() const
 const mach_header_32*
 mach_object::header32() const
 {
-  if (m_hdr && !m_hdr->is64bits())
-    return m_hdr.get();
+  return m_hdr ? m_hdr.get() : nullptr;
+  if (m_hdr) {
+    return m_hdr->is64bits()
+            ? static_cast<mach_header_32*>(m_hdr.get())
+            : m_hdr.get();
+  }
   return nullptr;
 }
 
 const mach_header_64*
 mach_object::header64() const
 {
-  if (m_hdr && m_hdr->is64bits()) {
-    mach_header_32* hdr = m_hdr.get();
-    return static_cast<mach_header_64*>(hdr);
-  }
-  return nullptr;
+  return m_hdr
+          ? static_cast<mach_header_64*>(m_hdr.get())
+          : nullptr;
 }
 
 bool
@@ -439,14 +580,17 @@ mach_object::readHdr(std::ifstream& file)
     fail(); return;
   }
 
-  file.seekg(file.beg);
+  file.seekg(m_startpos);
 
   if (magic == Magic64 || magic == Cigam64) {
     mach_header_64 hdr{file};
     m_hdr = std::make_unique<mach_header_64>(hdr);
-  } else {
+  } else if (magic == Magic32 || magic == Cigam32) {
     mach_header_32 hdr{file};
     m_hdr = std::make_unique<mach_header_32>(hdr);
+  } else {
+    file.setstate(std::ios::failbit); // not a mach binary
+    std::cerr << "Not a macho object file";
   }
 }
 
@@ -454,10 +598,10 @@ void
 mach_object::readCmds(std::ifstream& file)
 {
   // read load commands
+  auto pos = 0+file.tellg();
   for (size_t i = 0, end = m_hdr->ncmds(); i < end; ++i) {
-    load_command_bytes cmd{this};
+    load_command_bytes cmd{file, *this};
 
-    cmd << file;
     if (!file)
       return;
 
@@ -469,11 +613,10 @@ void
 mach_object::readData(std::ifstream& file)
 {
   for (const auto& cmd : m_load_cmds) {
-    auto loadCmd = (LoadCmds)endian<uint32_t>(cmd.cmd);
-    switch (loadCmd) {
-    case LoadCmds::SEGMENT: [[fallthrough]];
-    case LoadCmds::SEGMENT_64:{
-      auto seg = std::make_unique<data_segment>(file, cmd);
+    switch (cmd.cmd()) {
+    case LoadCmds::LC_SEGMENT: [[fallthrough]];
+    case LoadCmds::LC_SEGMENT_64:{
+      auto seg = std::make_unique<data_segment>(file, cmd, *this);
       m_data_segments.emplace_back(std::move(seg));
     } break;
     default:; // nothing in data sections
@@ -492,11 +635,10 @@ mach_object::rpaths() const
 {
   std::vector<Path> rpaths;
   for (const auto& loadCmd : m_load_cmds) {
-    if ((LoadCmds)endian<uint32_t>(loadCmd.cmd) == RPATH) {
-      lc_str lcStr;
-      auto buf = loadCmd.bytes.get();
-      readLcStr(lcStr, buf);
-      auto str = &loadCmd.bytes.get()[lcStr.offset - sizeof(load_command)];
+    if (loadCmd.cmd() == LC_RPATH) {
+      lc_str lc{loadCmd.bytes.get(), this};
+      auto str = &loadCmd.bytes.get()
+        [lc.offset - sizeof(load_command)];
       rpaths.emplace_back((char*)str);
     }
   }
@@ -506,19 +648,19 @@ mach_object::rpaths() const
 std::vector<Path>
 mach_object::loadDylibPaths() const
 {
-  return searchForDylibs(LOAD_DYLIB);
+  return searchForDylibs(LC_LOAD_DYLIB);
 }
 
 std::vector<Path>
 mach_object::reexportDylibPaths() const
 {
-  return searchForDylibs(REEXPORT_DYLIB);
+  return searchForDylibs(LC_REEXPORT_DYLIB);
 }
 
 std::vector<Path>
 mach_object::weakLoadDylib() const
 {
-  return searchForDylibs(LOAD_WEAK_DYLIB);
+  return searchForDylibs(LC_LOAD_WEAK_DYLIB);
 }
 
 std::vector<const data_segment*>
@@ -531,30 +673,15 @@ mach_object::dataSegments() const
   return vec;
 }
 
-void
-mach_object::readLcStr(
-  lc_str& lcStr, const char* buf
-) const {
-  lcStr.ptr64bit = nullptr;
-
-  if (m_hdr->is64bits()) {
-    lcStr.ptr64bit = (char*)endian<uint64_t>((uint64_t)(*buf));
-  } else {
-    lcStr.offset = endian<uint32_t>((uint32_t)(*buf));
-  }
-}
-
 std::vector<Path>
 mach_object::searchForDylibs(LoadCmds type) const
 {
   std::vector<Path> loadDylibs;
   for (const auto& loadCmd : m_load_cmds) {
-    if ((LoadCmds)endian<uint32_t>(loadCmd.cmd) == type) {
-      auto buf = loadCmd.bytes.get();
-      dylib dy;
-      readLcStr(dy.name, buf);
+    if (loadCmd.cmd() == type) {
+      dylib_command dy{loadCmd, *this};
       auto b = loadCmd.bytes.get();
-      auto str = &b[dy.name.offset - sizeof(load_command)];
+      auto str = &b[dy.name().offset - sizeof(load_command)];
       loadDylibs.emplace_back((char*)str);
     }
   }
@@ -595,39 +722,121 @@ mach_object::changeReexportDylibPaths()
 
 // -----------------------------------------------------------
 
-section_64::section_64()
-  : section{}
-  , reserved3{0}
+data_segment::data_segment()
+  : m_segname{0}
+  , m_filesize{0}
+  , m_fileoff{0}
 {}
 
-section_64::section_64(std::ifstream& file, mach_object& owner)
+data_segment::data_segment(
+  std::ifstream& file,
+  const load_command_bytes& cmd,
+  const mach_object& obj
+) : m_segname{0}
+  , m_filesize{0}
+  , m_fileoff{0}
 {
-  readInto<section>(file, this);
-  if (file) {
-    uint32_t ali = owner.endian<uint32_t>(align);
-    file.seekg(ali*2 + file.tellg());
+  if (cmd.cmd() == LC_SEGMENT_64) {
+    read_into<segment_command_64, uint64_t>(file, cmd, obj);
+  } else {
+    read_into<segment_command_64, uint32_t>(file, cmd, obj);
   }
 }
 
 // -----------------------------------------------------------
 
-data_segment::data_segment()
-  : segname{0}
-  , filesize{0}
-  , fileoff{0}
+mach_fat_object::mach_fat_object()
+  : m_hdr{nullptr}
+  , m_fat_arch{}
+  , m_objects{}
 {}
 
-data_segment::data_segment(std::ifstream& file, const load_command_bytes& cmd)
-  : segname{0}
-  , filesize{0}
-  , fileoff{0}
+mach_fat_object::mach_fat_object(std::ifstream& file)
+  : m_hdr{nullptr}
+  , m_fat_arch{}
+  , m_objects{}
 {
-  if (cmd.cmd == SEGMENT_64) {
-    read_into<segment_command_64, uint64_t>(file, cmd);
-  } else {
-    read_into<segment_command_64, uint32_t>(file, cmd);
+  auto hdr = std::make_unique<fat_header>(file);
+  if (!file || hdr->magic() != FatMagic)
+    return;
+
+  m_hdr = std::move(hdr);
+
+  // load architecture
+  for (size_t i = 0, end = m_hdr->nfat_arch(); i < end; ++i) {
+    fat_arch arch{file};
+    if (!file || !arch.size) {
+      fail();
+      return;
+    }
+
+    m_fat_arch.emplace_back(std::move(arch));
+  }
+
+  if (!file) {
+    fail();
+    return;
+  }
+
+  // load objects from within this fat object
+  for (const auto& arch : m_fat_arch) {
+    std::streampos pos = endian(arch.offset);
+    file.seekg(pos);
+
+    mach_object obj{file};
+    if (!file) {
+      fail();
+      return;
+    }
+
+    auto p = file.tellg();
+    size_t ali = endian<uint32_t>(arch.align);
+    uint32_t po = std::pow(2u, ali);
+    file.seekg(po + file.tellg());
+
+    auto p2 = file.tellg();
+    auto e = endian(arch.size);
+
+    //assert(file.tellg() == endian(arch.size) + pos &&
+    //      "Object size mismatch in a fat binary, "
+    //      "please report this");
+
+    m_objects.emplace_back(std::move(obj));
   }
 }
+
+bool
+mach_fat_object::isBigEndian() const
+{
+  return m_hdr && m_hdr->isBigEndian();
+}
+
+bool
+mach_fat_object::failure() const
+{
+  return !m_hdr || m_fat_arch.empty() || m_objects.empty();
+}
+
+const std::vector<mach_object>&
+mach_fat_object::objects() const
+{
+  return m_objects;
+}
+
+const std::vector<fat_arch>&
+mach_fat_object::architectures() const
+{
+  return m_fat_arch;
+}
+
+void
+mach_fat_object::fail()
+{
+  m_hdr.release();
+  m_fat_arch.clear();
+  m_objects.clear();
+}
+
 
 // -----------------------------------------------------------
 

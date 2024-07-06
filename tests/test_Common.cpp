@@ -467,6 +467,8 @@ TEST_F(MachOTest, readHeader) {
   EXPECT_EQ(macho.failure(), false);
 
   EXPECT_EQ(macho.isBigEndian(), false);
+  auto type = macho.header64()->cputype();
+  EXPECT_STREQ(MachO::CpuTypeStr(type), "MH_X86_64");
 }
 
 TEST_F(MachOTest, readLoadCmds) {
@@ -485,9 +487,9 @@ TEST_F(MachOTest, sections) {
   MachO::mach_object macho(file);
   auto segm = macho.dataSegments();
   EXPECT_EQ(segm.size(), 3);
-  EXPECT_STREQ(segm.at(0)->segname, "__TEXT");
-  EXPECT_STREQ(segm.at(1)->segname, "__DATA");
-  EXPECT_STREQ(segm.at(2)->segname, "__LINKEDIT");
+  EXPECT_STREQ(segm.at(0)->segname(), "__TEXT");
+  EXPECT_STREQ(segm.at(1)->segname(), "__DATA");
+  EXPECT_STREQ(segm.at(2)->segname(), "__LINKEDIT");
 }
 
 TEST_F(MachOTest, readToEnd) {
@@ -504,13 +506,48 @@ TEST_F(MachOTest, readToEnd) {
 
 // ------------------------------------------------------------
 
-
 TEST(MachoIOS, readTest) {
   std::ifstream file;
   file.open(fs::path(__FILE__).parent_path() / "testdata" / "AngryBirds2");
   MachO::mach_object macho{file};
 
+  auto type = macho.header64()->cputype();
+  EXPECT_STREQ(MachO::CpuTypeStr(type), "MH_ARM64");
+
   EXPECT_EQ(macho.is64bits(), true);
+  auto segm = macho.dataSegments();
+  EXPECT_EQ(segm.size(), 5);
 }
 
+// ------------------------------------------------------------
 
+class FatMachO : public testing::Test
+{
+public:
+  void SetUp() override {
+    auto path = fs::path(__FILE__).parent_path() / "testdata" / "sublime_text";
+    file.open(path, std::ios::binary);
+    ASSERT_EQ(file.fail(), false);
+  }
+
+  void TearDown() override {
+    file.close();
+  }
+
+  std::ifstream file;
+};
+
+TEST_F(FatMachO, readHeader) {
+  MachO::mach_fat_object fat{file};
+  EXPECT_FALSE(fat.failure());
+  EXPECT_TRUE(fat.isBigEndian());
+  const auto archs = fat.architectures();
+  const auto& obj = fat.objects();
+  EXPECT_EQ(archs.size(), 2);
+  EXPECT_STREQ(MachO::CpuTypeStr(fat.endian(archs[0].cputype)), "MH_X86_64");
+  EXPECT_FALSE(obj[0].isBigEndian());
+  EXPECT_TRUE(obj[0].is64bits());
+  EXPECT_STREQ(MachO::CpuTypeStr(fat.endian(archs[1].cputype)), "MH_ARM64");
+  EXPECT_FALSE(obj[1].isBigEndian());
+  EXPECT_TRUE(obj[1].is64bits());
+}
