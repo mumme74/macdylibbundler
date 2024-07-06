@@ -3,6 +3,7 @@ add_subdirectory(jsonlib)
 add_subdirectory(dylib)
 add_subdirectory(argparser)
 
+# the main dylibbunler executable
 target_sources(dylibbundler PRIVATE
   main.cpp
 )
@@ -17,4 +18,17 @@ target_include_directories(
   PUBLIC
     ${CMAKE_SOURCE_DIR}/src/dylib
     ${CMAKE_SOURCE_DIR}/src/argparser
+)
+
+# the secondary object tool
+target_sources(object_tool PRIVATE
+  object_tool.cpp
+)
+target_link_libraries(object_tool
+  PUBLIC common argparser
+)
+target_include_directories(
+  object_tool
+  PUBLIC ${CMAKE_SOURCE_DIR}/src/common
+  PUBLIC ${CMAKE_SOURCE_DIR}/src/argparser
 )

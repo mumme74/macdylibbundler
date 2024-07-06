@@ -20,6 +20,7 @@ add_library(json STATIC "")
 add_library(dylib STATIC "")
 add_library(argparser STATIC "")
 add_executable(dylibbundler "")
+add_executable(object_tool "")
 
 add_subdirectory(src)
 if(BUILD_TESTS)
