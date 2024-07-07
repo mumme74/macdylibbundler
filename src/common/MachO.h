@@ -403,7 +403,7 @@ public:
   uint32_t sizeofcmds() const { return m_sizeofcmds; }
   bool isBigEndian() const;
   bool is64bits() const;
-  std::ofstream& operator>>(std::ofstream& file) const;
+  bool write(std::ofstream& file, const mach_object& obj) const;
 
 protected:
   uint32_t convertEndian(uint32_t) const;
@@ -423,7 +423,7 @@ public:
   mach_header_64();
   mach_header_64(std::ifstream& file);
   uint32_t reserved() const { return m_reserved; }
-  std::ofstream& operator>>(std::ofstream& file) const;
+  bool write(std::ofstream& file, const mach_object& obj) const;
 
 private:
   uint32_t      m_reserved;       // not used?
@@ -449,6 +449,7 @@ public:
   void changeRPath(PathRef oldPath, PathRef newPath);
   void changeLoadDylibPaths();
   void changeReexportDylibPaths();
+  bool write(std::ofstream& file) const;
   bool failure() const;
   size_t startPos() const { return m_start_pos; }
 
@@ -489,7 +490,7 @@ typedef union _lcStr
 {
   _lcStr();
   _lcStr(const char* bytes, const mach_object& obj);
-  enum {lc_STR_OFFSET};
+  enum {lc_STR_OFFSET = 4};
 
 	uint32_t	offset;	/* offset to the string */
 	char		*ptr64bit;	/* pointer to the string, only on 64bit targets */
@@ -530,6 +531,7 @@ struct load_command_bytes : load_command
   load_command_bytes();
   load_command_bytes(std::ifstream& file, mach_object& owner);
   std::unique_ptr<char[]> bytes;
+  bool write(std::ofstream& file, const mach_object& obj) const;
 };
 
 
@@ -1067,12 +1069,14 @@ public:
   uint64_t filesize() const { return m_filesize; }
   uint64_t fileoff() const { return m_fileoff; }
 
+  bool write(std::ofstream& file, const mach_object& obj) const;
+
 
 private:
   char m_segname[segment_command::SZ_SEGNAME];
   uint64_t m_filesize;
   uint64_t m_fileoff;
-  std::unique_ptr<char[]> bytes;
+  std::unique_ptr<char[]> m_bytes;
 
   void read_into(
       std::ifstream& file, const mach_object& obj);

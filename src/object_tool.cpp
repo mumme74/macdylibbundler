@@ -35,7 +35,7 @@ struct inputs {
 
   enum Actions {
     Help, ListCmds, RPaths, WeakLoad, ReexportLoad, Load,
-    AllPaths
+    AllPaths, ExtractTo
   };
   static void setInputFile(std::string path) {
     inputFile = Path(path);
@@ -67,7 +67,7 @@ struct inputs {
               outputFile;
 
   static bool overwrite,
-               overwriteInputFile;
+              overwriteInputFile;
   static std::string arch;
 };
 bool inputs::overwrite = false;
@@ -82,7 +82,7 @@ void showHelp();
 ArgParser args {
   {
     "i","input file",
-    "file to inpect (executable or app plug-in)",
+    "file to inspect (executable or app plug-in)",
     inputs::setInputFile, ArgItem::ReqVluString
   },
   {
@@ -120,7 +120,15 @@ ArgParser args {
     }
   },
   {
-    nullptr,"arch", "Select this architecture in a fat binary",
+    nullptr,"extract-arch", "Extract a mach-o object from a fat binary."
+    " On non fat binaries it works just like copy",
+    [](){
+      inputs::setAction(inputs::ExtractTo);
+    }
+  },
+  {
+    nullptr,"arch", "Select this architecture in a fat binary. "
+                    "Default is first arch in file.",
     inputs::setArch, ArgItem::ReqVluString
   },
   {
@@ -178,6 +186,26 @@ int runAction(const MachO::mach_object& obj, inputs::Actions action)
     std::cout << "Load command for: " << inputs::inputFile << "\n";
     std::cout << insp.loadCmds();
   } break;
+  case inputs::ExtractTo: {
+    if (inputs::outputFile.empty()) {
+      std::cerr << "Must give out file to copy to\n";
+      return 1;
+    } else if (!inputs::overwrite && fs::exists(inputs::outputFile)) {
+      std::cerr << "Can't overwrite file without force \n";
+      return 1;
+    } else if (inputs::inputFile == inputs::outputFile) {
+      std::cerr << "Can't copy to source file\n";
+      return 1;
+    }
+    std::ofstream file;
+    file.open(inputs::outputFile, std::ios::out);
+    if (file.bad()) {
+      std::cerr << "Failed to open file '" << inputs::outputFile << "'\n";
+      return 2;
+    }
+
+    obj.write(file);
+  } break;
   default:
     std::cerr << "**Unknown action \n";
     showHelp();
@@ -220,14 +248,14 @@ int main(int argc, const char *argv[])
   if (!file) {
     std::cerr << "Failed to open input file."
               << "" << strerror(errno) << "\n";
+    return 1;
   }
 
   MachO::mach_fat_object fat{file};
   if (!fat.failure()) {
-    std::string keyArch;
+    std::string keyArch = inputs::arch;
 
-    std::transform(
-      inputs::arch.begin(), inputs::arch.end(),
+    std::transform(keyArch.begin(), keyArch.end(),
       keyArch.begin(), ::toupper);
 
     if (!inputs::arch.empty()) {
@@ -235,18 +263,24 @@ int main(int argc, const char *argv[])
       auto found = std::find_if(arches.begin(), arches.end(),
         [&](const auto& arch) {
           std::string name = MachO::CpuTypeStr(arch.cputype());
-          return name.substr(2) == keyArch;
+          return name.size() && name.substr(3) == keyArch;
         }
       );
 
-      if (found != arches.begin())
+      if (found != arches.end())
         return runAction(fat.objects()
             .at(found - arches.begin()), inputs::action);
 
       std::cerr << "Architecture: " << inputs::arch << " not found\n";
+      exit(2);
     }
 
     return runAction(fat.objects().at(0), inputs::action);
+  }
+
+  if (inputs::arch.size()) {
+    std::cerr << "Architecture --arch=... not valid on a non fat binary\n";
+    return 1;
   }
 
   file.clear();

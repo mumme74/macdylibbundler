@@ -333,16 +333,16 @@ mach_header_32::is64bits() const
   return m_magic == Magic64 || m_magic == Cigam64;
 }
 
-std::ofstream&
-mach_header_32::operator>>(std::ofstream& file) const
+bool
+mach_header_32::write(std::ofstream& file, const mach_object& obj) const
 {
-  mach_header_32 out{};
-  memcpy((void*)&out, (void*)this, sizeof(mach_header_32));
-  out.endian();
-  file << out.m_magic << out.m_cputype << out.m_cpusubtype
-       << out.m_filetype << out.m_ncmds << out.m_sizeofcmds
-       << out.m_flags;
-  return file;
+  mach_header_32 cpy{*this};
+  uint32_t *pcpy = (uint32_t*)&cpy;
+  for (size_t i = 1; i < sizeof(cpy); ++i)
+    pcpy[i] = obj.endian(pcpy[i]);
+
+  file.write((char*)pcpy, sizeof(cpy));
+  return file.good();
 }
 
 // ----------------------------------------------------------
@@ -362,16 +362,16 @@ mach_header_64::mach_header_64(std::ifstream& file)
     m_reserved = reverseEndian(m_magic);
 }
 
-std::ofstream&
-mach_header_64::operator>>(std::ofstream& file) const
+bool
+mach_header_64::write(std::ofstream& file, const mach_object& obj) const
 {
-  mach_header_64 out{};
-  memcpy((void*)&out, (void*)this, sizeof(mach_header_32));
-  out.endian();
-  file << out.m_magic << out.m_cputype << out.m_cpusubtype
-       << out.m_filetype << out.m_ncmds << out.m_sizeofcmds
-       << out.m_flags << out.m_reserved;
-  return file;
+  mach_header_64 cpy{*this};
+  uint32_t *pcpy = (uint32_t*)&cpy;
+  for (size_t i = 1; i < sizeof(cpy); ++i)
+    pcpy[i] = obj.endian(pcpy[i]);
+
+  file.write((char*)pcpy, sizeof(cpy));
+  return file.good();
 }
 
 // -----------------------------------------------------------
@@ -408,7 +408,6 @@ load_command::load_command(
 load_command_bytes::load_command_bytes()
   : load_command{}
   , bytes{nullptr}
-  //, owner{nullptr}
 {}
 
 /*
@@ -448,6 +447,19 @@ load_command_bytes::load_command_bytes(
     file.setstate(std::ios::badbit);
     return;
   }
+}
+
+bool
+load_command_bytes::write(std::ofstream& file, const mach_object& obj) const
+{
+  load_command_bytes cpy{};
+  cpy.m_cmd = obj.endian(m_cmd);
+  cpy.m_cmdsize = obj.endian(m_cmdsize);
+
+  const size_t mysize = sizeof(m_cmd) + sizeof(m_cmdsize);
+  file.write((char*)&cpy, mysize);
+  file.write(bytes.get(), m_cmdsize - mysize);
+  return file.good();
 }
 
 // -----------------------------------------------------------
@@ -745,6 +757,67 @@ mach_object::changeReexportDylibPaths()
   std::cerr << "Unimplemented\n";
 }
 
+bool
+mach_object::write(std::ofstream& file) const
+{
+  auto pos= file.tellp();
+  bool res;
+  if (is64bits())
+    res = static_cast<mach_header_64*>(m_hdr.get())->write(file, *this);
+  else
+    res = m_hdr->write(file, *this);
+  if (!res) {
+    file.setstate(std::ios::failbit);
+    return false;
+  }
+  file.flush();
+  auto afterHdr = file.tellp();
+  std::streamoff firstSegment = 0xffffffffffffffff;
+
+  for (const auto& cmd : m_load_cmds) {
+    res = cmd.write(file, *this);
+    if (!res) {
+      file.setstate(std::ios::badbit);
+      return false;
+    }
+    file.flush();
+    pos = file.tellp();
+
+    switch (cmd.cmd()) {
+    case LC_SEGMENT: {
+      segment_command seg{cmd, *this};
+      if (firstSegment > seg.fileoff())
+        firstSegment = seg.fileoff();
+    } break;
+    case LC_SEGMENT_64: {
+      segment_command_64 seg{cmd, *this};
+      if (firstSegment > seg.fileoff())
+        firstSegment = seg.fileoff();
+    } break;
+    default:;
+    }
+  }
+  auto afterCmds = file.tellp();
+
+  file.seekp(fileoff() + firstSegment);
+
+  pos = file.tellp();
+
+  for (const auto& data : m_data_segments) {
+    file.seekp(m_start_pos + data->fileoff());
+    res = data->write(file, *this);
+    if (!res) {
+      file.setstate(std::ios::failbit);
+      return false;
+    }
+
+    file.flush();
+    pos = file.tellp();
+  }
+
+  return true;
+}
+
 // -----------------------------------------------------------
 
 fwlib_command::fwlib_command(
@@ -955,11 +1028,18 @@ data_segment::read_into(
   file.seekg(obj.startPos() + m_fileoff);
 
   std::streampos sz = m_filesize;
-  bytes = std::make_unique<char[]>(sz);
-  if (file.readsome(bytes.get(), sz) != sz) {
+  m_bytes = std::make_unique<char[]>(sz);
+  if (file.readsome(m_bytes.get(), sz) != sz) {
     file.setstate(std::ios::badbit);
     return;
   }
+}
+
+bool
+data_segment::write(std::ofstream& file, const mach_object& obj) const
+{
+  file.write(m_bytes.get(), m_filesize);
+  return file.good();
 }
 
 

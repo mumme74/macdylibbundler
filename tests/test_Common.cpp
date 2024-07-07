@@ -27,6 +27,7 @@ THE SOFTWARE.
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <cstdlib>
 #include "Common.h"
 #include "Types.h"
 #include "Tools.h"
@@ -472,6 +473,7 @@ TEST_F(MachOTest, readHeader) {
 }
 
 TEST_F(MachOTest, readLoadCmds) {
+  testing::internal::CaptureStdout();
   MachO::mach_object macho(file);
 
   auto dylibs = macho.loadDylibPaths();
@@ -481,6 +483,9 @@ TEST_F(MachOTest, readLoadCmds) {
   EXPECT_EQ(dylibs[2].string(), "@executable_path/../libs/libicui18n.73.dylib");
   EXPECT_EQ(dylibs[3].string(), "/usr/lib/libSystem.B.dylib");
   EXPECT_EQ(dylibs[4].string(), "/usr/lib/libc++.1.dylib");
+  //EXPECT_THAT(
+    testing::internal::GetCapturedStdout();
+  //  MatchesRegex(".*cmd LC_LOAD_DYLIB.*"));
 }
 
 TEST_F(MachOTest, sections) {
@@ -502,6 +507,65 @@ TEST_F(MachOTest, readToEnd) {
   file.get();
   EXPECT_TRUE(file.eof());
   EXPECT_EQ(pos, end);
+}
+
+// -----------------------------------------------------------
+
+struct MachOWrite : ::testing::Test
+{
+  void SetUp() {
+    auto tests = fs::path(__FILE__).parent_path();
+    inPath = tests / "testdata/libicudata.73.dylib";
+    outPath = tests / "__dump";
+    infile.open(inPath, std::ios::binary);
+    outfile.open(outPath, std::ios::binary);
+  }
+
+  void TearDown() {
+    infile.close();
+    outfile.close();
+    chk.close();
+    fs::remove(fs::path(__FILE__).parent_path()/"__dump");
+  }
+
+  bool noDiff() {
+    FILE* f1 = fopen(inPath.c_str(),"r");
+    FILE* f2 = fopen(outPath.c_str(),"r");
+    int N = 10000;
+    char buf1[N];
+    char buf2[N];
+    bool res = false;
+
+    do {
+      size_t r1 = fread(buf1, 1, N, f1);
+      size_t r2 = fread(buf2, 1, N, f2);
+
+      if (r1 != r2 ||
+          memcmp(buf1, buf2, r1))
+      {
+        goto out;  // Files are not equal
+      }
+    } while (!feof(f1) && !feof(f2));
+
+    res = feof(f1) && feof(f2);
+
+  out:
+    fclose(f1);
+    fclose(f2);
+    return res;
+  }
+
+  std::ifstream infile;
+  std::ofstream outfile;
+  std::ifstream chk;
+  fs::path inPath, outPath;
+};
+
+TEST_F(MachOWrite, write) {
+  MachO::mach_object obj{infile};
+  obj.write(outfile);
+  EXPECT_FALSE(outfile.bad());
+  EXPECT_TRUE(noDiff());
 }
 
 // ------------------------------------------------------------
