@@ -286,8 +286,7 @@ enum LoadCmds: uint32_t {
     LC_VERSION_MIN_MACOSX = 0x24,    /* build for MacOSX min OS version */
     LC_VERSION_MIN_IPHONEOS = 0x25,  /* build for iPhoneOS min OS version */
     LC_FUNCTION_STARTS = 0x26,  /* compressed table of function start addresses */
-    LC_DYLD_ENVIRONMENT = 0x27,  /* string for dyld to treat
-				    like environment variable */
+    LC_DYLD_ENVIRONMENT = 0x27,  /* string for dyld to treat like environment variable */
     LC_MAIN = (0x28|LC_REQ_DYLD), /* replacement for LC_UNIXTHREAD */
     LC_DATA_IN_CODE = 0x29,  /* table of non-instructions in __text */
     LC_SOURCE_VERSION = 0x2A,  /* source version used to build binary */
@@ -298,9 +297,29 @@ enum LoadCmds: uint32_t {
     LC_VERSION_MIN_TVOS = 0x2F,  /* build for AppleTV min OS version */
     LC_VERSION_MIN_WATCHOS = 0x30,  /* build for Watch min OS version */
     LC_NOTE = 0x31,  /* arbitrary data included within a Mach-O file */
+    LC_BUILD_VERSION =  0x32 /* build for platform min OS version */
 };
 
+
 const char* LoadCmdStr(LoadCmds cmd);
+
+
+enum Tools: uint32_t {
+  TOOL_CLANG = 1,
+  TOOL_SWIFT = 2,
+  TOOL_LD = 3
+};
+
+const char* ToolsStr(Tools tool);
+
+enum Platforms: uint32_t {
+  PLATFORM_MACOS = 1,
+  PLATFORM_IOS = 2,
+  PLATFORM_TVOS = 3,
+  PLATFORM_WATCH = 4,
+};
+
+const char* PlatformsStr(Platforms platform);
 
 class MachOLoader;
 class mach_object;
@@ -410,250 +429,6 @@ private:
   uint32_t      m_reserved;       // not used?
 };
 
-/*
- * A variable length string in a load command is represented by an lc_str
- * union.  The strings are stored just after the load command structure and
- * the offset is from the start of the load command structure.  The size
- * of the string is reflected in the cmdsize field of the load command.
- * Once again any padded bytes to bring the cmdsize field to a multiple
- * of 4 bytes must be zero.
- */
-typedef union _lcStr
-{
-  _lcStr();
-  _lcStr(const char* bytes, const mach_object* obj);
-	uint32_t	offset;	/* offset to the string */
-	char		*ptr64bit;	/* pointer to the string, only on 64bit targets */
-} lc_str ;
-
-/**
- * Load commands follow directly after header. Total size of load
- * commands is given by sizeofcmds field in header
- * All commands begins with these two values.
- * The cmdsize field is the size in bytes
- * of the particular load command structure plus anything that follows it that
- * is a part of the load command (i.e. section structures, strings, etc.).  To
- * advance to the next load command the cmdsize can be added to the offset or
- * pointer of the current load command. The cmdsize for 32-bit architectures
- * MUST be a multiple of 4 bytes and for 64-bit architectures MUST be a multiple
- * of 8 bytes (these are forever the maximum alignment of any load commands).
- * The padded bytes must be zero.  All tables in the object file must also
- * follow these rules so the file can be memory mapped.  Otherwise the pointers
- * to these tables will not work well or at all on some machines.  With all
- * padding zeroed like objects will compare byte for byte.
- */
-class load_command
-{
-public:
-  load_command();
-  load_command(const load_command_bytes& cmd);
-  // the type of command
-  LoadCmds cmd() const { return m_cmd; }
-  // size of this command including
-  uint32_t cmdsize() const { return m_cmdsize; }
-protected:
-  LoadCmds m_cmd;
-  uint32_t m_cmdsize;
-};
-
-struct load_command_bytes : load_command
-{
-  load_command_bytes();
-  load_command_bytes(std::ifstream& file, mach_object& owner);
-  std::unique_ptr<char[]> bytes;
-};
-
-// used by LC_LOAD_DYLIB, LC_LOAD_WEK_DYLIB and LC_REEXPORT_DYLIB
-class dylib_command : public load_command
-{
-public:
-  dylib_command();
-  dylib_command(const load_command_bytes& from, const mach_object& obj);
-  /* library's path name */
-  lc_str name() const  { return m_name; }
-  /* library's build time stamp */
-  uint32_t timestamp() const { return m_timestamp; }
-  /* library's current version number */
-  uint32_t current_version() const { return m_current_version; }
-  /* library's compatibility vers number*/
-  uint32_t compatibility_version() const { return m_compatibility_version; }
-
-private:
-  lc_str  m_name;
-  uint32_t m_timestamp;
-  uint32_t m_current_version;
-  uint32_t m_compatibility_version;
-};
-
-/*
- * The segment load command indicates that a part of this file is to be
- * mapped into the task's address space.  The size of this segment in memory,
- * vmsize, maybe equal to or larger than the amount to map from this file,
- * filesize.  The file is mapped starting at fileoff to the beginning of
- * the segment in memory, vmaddr.  The rest of the memory of the segment,
- * if any, is allocated zero fill on demand.  The segment's maximum virtual
- * memory protection and initial virtual memory protection are specified
- * by the maxprot and initprot fields.  If the segment has sections then the
- * section structures directly follow the segment command and their size is
- * reflected in cmdsize.
- */
-class segment_command : public load_command {
-  /* for 32-bit architectures */
-public:
-  segment_command(const load_command_bytes& cmd, const mach_object& obj);
-  /* segment name */
-  const char* segname() const { return m_segname; }
-  /* memory address of this segment */
-  uint32_t vmaddr() const { return m_vmaddr; }
-  /* memory size of this segment */
-  uint32_t vmsize() const { return m_vmsize; }
-  /* file offset of this segment */
-  uint32_t fileoff() const { return m_fileoff; }
-  /* amount to map from the file */
-  uint32_t filesize() const { return m_filesize; }
-  /* maximum VM protection */
-  vm_prot_t maxprot() const { return m_maxprot; }
-  /* initial VM protection */
-  vm_prot_t initprot() const { return m_initprot; }
-  /* number of sections in segment */
-  uint32_t nsects() const { return m_nsects; }
-  /* flags */
-  uint32_t flags() const { return m_flags; }
-
-  enum {SZ_SEGNAME = 16};
-
-private:
-	char		m_segname[SZ_SEGNAME];
-	uint32_t	m_vmaddr;
-	uint32_t	m_vmsize;
-	uint32_t	m_fileoff;
-	uint32_t	m_filesize;
-	vm_prot_t	m_maxprot;
-	vm_prot_t	m_initprot;
-	uint32_t	m_nsects;
-	uint32_t	m_flags;
-};
-
-/*
- * The 64-bit segment load command indicates that a part of this file is to be
- * mapped into a 64-bit task's address space.  If the 64-bit segment has
- * sections then section_64 structures directly follow the 64-bit segment
- * command and their size is reflected in cmdsize.
- */
-class segment_command_64 : public load_command {
-  /* for 64-bit architectures */
-public:
-  segment_command_64(const load_command_bytes& cmd, const mach_object& obj);
-  /* segment name */
-  const char* segname() const { return m_segname; }
-  /* memory address of this segment */
-  uint64_t vmaddr() const { return m_vmaddr; }
-  /* memory size of this segment */
-  uint64_t vmsize() const { return m_vmsize; }
-  /* file offset of this segment */
-  uint64_t fileoff() const { return m_fileoff; }
-  /* amount to map from the file */
-  uint64_t filesize() const { return m_filesize; }
-  /* maximum VM protection */
-  vm_prot_t maxprot() const { return m_maxprot; }
-  /* initial VM protection */
-  vm_prot_t initprot() const { return m_initprot; }
-  /* number of sections in segment */
-  uint32_t nsects() const { return m_nsects; }
-  /* flags */
-  uint32_t flags() const { return m_flags; }
-
-private:
-	char		m_segname[16];
-	uint64_t	m_vmaddr;
-	uint64_t	m_vmsize;
-	uint64_t	m_fileoff;
-	uint64_t	m_filesize;
-	vm_prot_t	m_maxprot;
-	vm_prot_t	m_initprot;
-	uint32_t	m_nsects;
-	uint32_t	m_flags;
-};
-
-class section {
-   /* for 32-bit architectures */
-public:
-  section();
-  section(const char* bytes, const mach_object& obj);
-  /* name of this section */
-  const char* sectname() const { return m_sectname; }
-  /* segment this section goes in */
-  const char* segname()  const { return m_segname; }
-  /* memory address of this section */
-  uint32_t addr() const { return m_addr; }
-  /* size in bytes of this section */
-  uint32_t size() const { return m_size; }
-  /* file offset of this section */
-  uint32_t offset() const { return m_offset; }
-  /* section alignment (power of 2) */
-  uint32_t align() const { return m_align; }
-  /* file offset of relocation entries */
-  uint32_t reloff() const { return m_reloff; }
-  /* number of relocation entries */
-  uint32_t nreloc() const { return m_nreloc; }
-	/* flags (section type and attributes)*/
-  uint32_t flags() const { return m_flags; }
-  /* reserved (for offset or index) */
-  uint32_t reserved1() const { return m_reserved1; }
-  /* reserved (for count or sizeof) */
-  uint32_t reserved2() const { return m_reserved2; }
-
-private:
-	char		m_sectname[16];
-	char		m_segname[16];
-	uint32_t	m_addr;
-	uint32_t	m_size;
-	uint32_t	m_offset;
-	uint32_t	m_align;
-	uint32_t	m_reloff;
-	uint32_t	m_nreloc;
-	uint32_t	m_flags;
-	uint32_t	m_reserved1;
-	uint32_t	m_reserved2;
-};
-
-class section_64 : section {
-  /* for 64-bit architectures */
-public:
-  section_64();
-  section_64(const char* bytes, const mach_object& obj);
-  /* reserved */
-  uint32_t reserved3() const { return m_reserved3; }
-
-private:
-	uint32_t	m_reserved3;
-};
-
-// --------------------------------------------------------------
-
-/*
- * The linkedit_data_command contains the offsets and sizes of a blob
- * of data in the __LINKEDIT segment.
- * LC_CODE_SIGNATURE, LC_SEGMENT_SPLIT_INFO,
- * LC_FUNCTION_STARTS, LC_DATA_IN_CODE,
- * LC_DYLIB_CODE_SIGN_DRS or
- * LC_LINKER_OPTIMIZATION_HINT.
- */
-class linkedit_data_command : public load_command {
-public:
-  linkedit_data_command();
-  linkedit_data_command(
-    const load_command_bytes& cmd, const mach_object& obj);
-  /* file offset of data in __LINKEDIT segment */
-  uint32_t dataoff() const { return m_dataoff; }
-  /* file size of data in __LINKEDIT segment  */
-  uint32_t datasize() const { return m_datasize; }
-
-private:
-    uint32_t	m_dataoff;
-    uint32_t	m_datasize;
-};
-
 // ---------------------------------------------------------------
 
 class mach_object {
@@ -698,6 +473,568 @@ private:
   std::unique_ptr<mach_header_32> m_hdr;
   std::vector<load_command_bytes> m_load_cmds;
   std::vector<std::unique_ptr<data_segment>> m_data_segments;
+};
+
+//--------------------------------------------------------
+
+/*
+ * A variable length string in a load command is represented by an lc_str
+ * union.  The strings are stored just after the load command structure and
+ * the offset is from the start of the load command structure.  The size
+ * of the string is reflected in the cmdsize field of the load command.
+ * Once again any padded bytes to bring the cmdsize field to a multiple
+ * of 4 bytes must be zero.
+ */
+typedef union _lcStr
+{
+  _lcStr();
+  _lcStr(const char* bytes, const mach_object& obj);
+  enum {lc_STR_OFFSET};
+
+	uint32_t	offset;	/* offset to the string */
+	char		*ptr64bit;	/* pointer to the string, only on 64bit targets */
+} lc_str ;
+
+/**
+ * Load commands follow directly after header. Total size of load
+ * commands is given by sizeofcmds field in header
+ * All commands begins with these two values.
+ * The cmdsize field is the size in bytes
+ * of the particular load command structure plus anything that follows it that
+ * is a part of the load command (i.e. section structures, strings, etc.).  To
+ * advance to the next load command the cmdsize can be added to the offset or
+ * pointer of the current load command. The cmdsize for 32-bit architectures
+ * MUST be a multiple of 4 bytes and for 64-bit architectures MUST be a multiple
+ * of 8 bytes (these are forever the maximum alignment of any load commands).
+ * The padded bytes must be zero.  All tables in the object file must also
+ * follow these rules so the file can be memory mapped.  Otherwise the pointers
+ * to these tables will not work well or at all on some machines.  With all
+ * padding zeroed like objects will compare byte for byte.
+ */
+class load_command
+{
+public:
+  load_command();
+  load_command(const load_command_bytes& cmd, const mach_object& obj);
+  // the type of command
+  LoadCmds cmd() const { return m_cmd; }
+  // size of this command including
+  uint32_t cmdsize() const { return m_cmdsize; }
+protected:
+  LoadCmds m_cmd;
+  uint32_t m_cmdsize;
+};
+
+struct load_command_bytes : load_command
+{
+  load_command_bytes();
+  load_command_bytes(std::ifstream& file, mach_object& owner);
+  std::unique_ptr<char[]> bytes;
+};
+
+
+
+// used by LC_LOAD_DYLIB, LC_LOAD_WEK_DYLIB and LC_REEXPORT_DYLIB
+class dylib_command : public load_command
+{
+public:
+  dylib_command();
+  dylib_command(const load_command_bytes& from, const mach_object& obj);
+  /* library's path name */
+  lc_str name() const  { return m_name; }
+  /* library's build time stamp */
+  uint32_t timestamp() const { return m_timestamp; }
+  /* library's current version number */
+  uint32_t current_version() const { return m_current_version; }
+  /* library's compatibility vers number*/
+  uint32_t compatibility_version() const { return m_compatibility_version; }
+
+private:
+  lc_str  m_name;
+  uint32_t m_timestamp;
+  uint32_t m_current_version;
+  uint32_t m_compatibility_version;
+};
+
+/*
+ * The segment load command indicates that a part of this file is to be
+ * mapped into the task's address space.  The size of this segment in memory,
+ * vmsize, maybe equal to or larger than the amount to map from this file,
+ * filesize.  The file is mapped starting at fileoff to the beginning of
+ * the segment in memory, vmaddr.  The rest of the memory of the segment,
+ * if any, is allocated zero fill on demand.  The segment's maximum virtual
+ * memory protection and initial virtual memory protection are specified
+ * by the maxprot and initprot fields.  If the segment has sections then the
+ * section structures directly follow the segment command and their size is
+ * reflected in cmdsize.
+ */
+template<typename T>
+class _segment_command : public load_command {
+  /* for 32-bit architectures */
+public:
+  _segment_command(const load_command_bytes& cmd, const mach_object& obj)
+    : load_command{cmd}
+  {
+    memcpy((void*)m_segname,  cmd.bytes.get(),
+      sizeof(_segment_command<T>) - sizeof(load_command));
+    // endianness
+    T* buf = &m_vmaddr;
+    for (size_t i = 0; i < 4; ++i)
+      buf[i] = obj.endian(buf[i]);
+    m_maxprot = obj.endian(m_maxprot);
+    m_initprot = obj.endian(m_initprot);
+    m_nsects = obj.endian(m_nsects);
+    m_flags = obj.endian(m_flags);
+  }
+  /* segment name */
+  const char* segname() const { return m_segname; }
+  /* memory address of this segment */
+  T vmaddr() const { return m_vmaddr; }
+  /* memory size of this segment */
+  T vmsize() const { return m_vmsize; }
+  /* file offset of this segment */
+  T fileoff() const { return m_fileoff; }
+  /* amount to map from the file */
+  T filesize() const { return m_filesize; }
+  /* maximum VM protection */
+  vm_prot_t maxprot() const { return m_maxprot; }
+  /* initial VM protection */
+  vm_prot_t initprot() const { return m_initprot; }
+  /* number of sections in segment */
+  uint32_t nsects() const { return m_nsects; }
+  /* flags */
+  uint32_t flags() const { return m_flags; }
+
+  enum {SZ_SEGNAME = 16};
+
+private:
+	char m_segname[SZ_SEGNAME];
+	T	m_vmaddr;
+  T	m_vmsize;
+	T	m_fileoff;
+	T m_filesize;
+	vm_prot_t	m_maxprot;
+	vm_prot_t	m_initprot;
+	uint32_t	m_nsects;
+	uint32_t	m_flags;
+};
+
+/*
+ * The 64-bit segment load command indicates that a part of this file is to be
+ * mapped into a 64-bit task's address space.  If the 64-bit segment has
+ * sections then section_64 structures directly follow the 64-bit segment
+ * command and their size is reflected in cmdsize.
+ */
+using segment_command = _segment_command<uint32_t>;
+using segment_command_64 = _segment_command<uint64_t>;
+
+
+
+template<typename T>
+class _section {
+   /* for 32-bit architectures */
+public:
+  _section(const char* bytes, const mach_object& obj)
+  {
+    memcpy((void*)this, (void*)bytes, sizeof(_section<T>));
+    m_addr = obj.endian(m_addr);
+    m_size = obj.endian(m_size);
+    uint32_t* buf = &m_offset;
+    for (size_t i = 0; i < 7; ++i)
+      buf[i] = obj.endian(buf[i]);
+  }
+  /* name of this section */
+  const char* sectname() const { return m_sectname; }
+  /* segment this section goes in */
+  const char* segname()  const { return m_segname; }
+  /* memory address of this section */
+  T addr() const { return m_addr; }
+  /* size in bytes of this section */
+  T size() const { return m_size; }
+  /* file offset of this section */
+  uint32_t offset() const { return m_offset; }
+  /* section alignment (power of 2) */
+  uint32_t align() const { return m_align; }
+  /* file offset of relocation entries */
+  uint32_t reloff() const { return m_reloff; }
+  /* number of relocation entries */
+  uint32_t nreloc() const { return m_nreloc; }
+	/* flags (section type and attributes)*/
+  uint32_t flags() const { return m_flags; }
+  /* reserved (for offset or index) */
+  uint32_t reserved1() const { return m_reserved1; }
+  /* reserved (for count or sizeof) */
+  uint32_t reserved2() const { return m_reserved2; }
+
+private:
+	char		m_sectname[_segment_command<T>::SZ_SEGNAME];
+	char		m_segname[16];
+	T	m_addr;
+	T	m_size;
+	uint32_t	m_offset;
+	uint32_t	m_align;
+	uint32_t	m_reloff;
+	uint32_t	m_nreloc;
+	uint32_t	m_flags;
+	uint32_t	m_reserved1;
+	uint32_t	m_reserved2;
+};
+
+class section_64 : public _section<uint64_t> {
+  /* for 64-bit architectures */
+public:
+  section_64(const char* bytes, const mach_object& obj);
+
+  /* reserved */
+  uint32_t reserved3() const { return m_reserved3; }
+
+private:
+	uint32_t	m_reserved3;
+};
+
+using section = _section<uint32_t>;
+
+// --------------------------------------------------------------
+
+/*
+ * The linkedit_data_command contains the offsets and sizes of a blob
+ * of data in the __LINKEDIT segment.
+ * LC_CODE_SIGNATURE, LC_SEGMENT_SPLIT_INFO,
+ * LC_FUNCTION_STARTS, LC_DATA_IN_CODE,
+ * LC_DYLIB_CODE_SIGN_DRS or
+ * LC_LINKER_OPTIMIZATION_HINT.
+ */
+class linkedit_data_command : public load_command {
+public:
+  linkedit_data_command();
+  linkedit_data_command(
+    const load_command_bytes& cmd, const mach_object& obj);
+  /* file offset of data in __LINKEDIT segment */
+  uint32_t dataoff() const { return m_dataoff; }
+  /* file size of data in __LINKEDIT segment  */
+  uint32_t datasize() const { return m_datasize; }
+
+private:
+    uint32_t	m_dataoff;
+    uint32_t	m_datasize;
+};
+
+// ------------------------------------------------------------------
+
+class fwlib_command: public load_command
+{
+public:
+  fwlib_command(const load_command_bytes& cmd, const mach_object& obj);
+
+  lc_str name() const { return m_name; }
+  uint32_t minor_version() const { return m_minor_version; }
+  uint32_t header_addr() const { return m_header_addr; }
+
+private:
+  lc_str m_name;
+  uint32_t m_minor_version;
+  uint32_t m_header_addr;
+};
+
+// ---------------------------------------------------------------
+
+class prebound_dylib_command : public load_command
+{
+public:
+  prebound_dylib_command(const load_command_bytes& cmd, const mach_object& obj);
+
+  lc_str name() const { return m_name; }
+  uint32_t nmodules() const { return m_nmodules; }
+  lc_str linked_modules() const { return m_linked_modules; }
+
+private:
+  lc_str m_name;
+  uint32_t m_nmodules;
+  lc_str  m_linked_modules;
+};
+
+// -----------------------------------------------------------------
+
+template<typename T>
+class _routines_command : public load_command
+{
+public:
+  _routines_command(const load_command_bytes& cmd, const mach_object& obj)
+    : load_command{cmd, obj}
+  {
+    const size_t mysize = sizeof(_routines_command<T>) - sizeof(load_command);
+    memcpy((void*)&m_init_address, cmd.bytes.get(), mysize);
+    T* buf =  &m_init_address;
+    for(size_t i = 0; i < mysize; ++i)
+      buf[i] = obj.endian(buf[i]);
+  }
+
+  T init_address() const { return m_init_address; }
+  T init_module() const { return m_init_module; }
+  T reserved1() const { return m_reserved1; }
+  T reserved2() const { return m_reserved2; }
+  T reserved3() const { return m_reserved3; }
+  T reserved4() const { return m_reserved4; }
+  T reserved5() const { return m_reserved5; }
+  T reserved6() const { return m_reserved6; }
+
+private:
+  T m_init_address;
+  T m_init_module;
+
+  T m_reserved1;
+  T m_reserved2;
+  T m_reserved3;
+  T m_reserved4;
+  T m_reserved5;
+  T m_reserved6;
+};
+
+using routines_command = _routines_command<uint32_t>;
+using routines_command_64 = _routines_command<uint64_t>;
+
+// ------------------------------------------------------------------
+
+class symtab_command : public load_command
+{
+public:
+  symtab_command(const load_command_bytes& cmd, const mach_object& obj);
+
+  uint32_t symoff() const { return m_symoff; }
+  uint32_t syms() const { return m_syms; }
+  uint32_t stroff() const { return m_stroff; }
+  uint32_t strsize() const { return m_strsize; }
+
+private:
+  uint32_t m_symoff;
+  uint32_t m_syms;
+  uint32_t m_stroff;
+  uint32_t m_strsize;
+};
+
+// ------------------------------------------------------------------
+
+class dysymtab_command : public load_command
+{
+public:
+  dysymtab_command(const load_command_bytes& cmd, const mach_object& obj);
+
+  uint32_t ilocalsym() const { return m_ilocalsym; }
+  uint32_t nlocalsym() const { return m_nlocalsym; }
+  uint32_t iextsym() const { return m_iextsym; }
+  uint32_t nextsym() const { return m_nextsym; }
+  uint32_t iundefsym() const { return m_iundefsym; }
+  uint32_t nundefsym() const { return m_nundefsym; }
+  uint32_t tocoff() const { return m_tocoff; }
+  uint32_t ntoc() const { return m_ntoc; }
+  uint32_t modtaboff() const { return m_modtaboff; }
+  uint32_t nmodtab() const { return m_nmodtab; }
+  uint32_t extrefsymoff() const { return m_extrefsymoff; }
+  uint32_t nextrefsyms() const { return m_nextrefsyms; }
+  uint32_t indirectsymsoff() const { return m_indirectsymsoff; }
+  uint32_t nindrectsyms() const { return m_nindrectsyms; }
+  uint32_t extreloff() const { return m_extreloff; }
+  uint32_t nextrel() const { return m_nextrel; }
+  uint32_t locreloff() const { return m_locreloff; }
+  uint32_t locrel() const { return m_locrel; }
+
+private:
+  uint32_t m_ilocalsym,
+           m_nlocalsym,
+           m_iextsym,
+           m_nextsym,
+           m_iundefsym,
+           m_nundefsym,
+           m_tocoff,
+           m_ntoc,
+           m_modtaboff,
+           m_nmodtab,
+           m_extrefsymoff,
+           m_nextrefsyms,
+           m_indirectsymsoff,
+           m_nindrectsyms,
+           m_extreloff,
+           m_nextrel,
+           m_locreloff,
+           m_locrel;
+};
+
+// ------------------------------------------------------------------
+
+class twolevel_hints_command : public load_command
+{
+public:
+  twolevel_hints_command(const load_command_bytes& cmd, const mach_object& obj);
+  uint32_t offset() const { return m_offset; }
+  uint32_t nhints() const { return m_nhints; }
+private:
+  uint32_t m_offset, m_nhints;
+};
+
+class twolevel_hint
+{
+public:
+  twolevel_hint(const char* buf, const mach_object& obj);
+  uint32_t itoc() const { return m_itoc; }
+  uint8_t isubimage() const { return m_isubimage; }
+
+private:
+  uint32_t
+    m_isubimage: 8,  // index to subimage
+    m_itoc: 24;      // index into table of contents
+};
+
+// ------------------------------------------------------------------
+
+class prebind_checksum_command : public load_command
+{
+public:
+  prebind_checksum_command(const load_command_bytes& cmd, const mach_object&obj);
+  uint32_t chksum() const { return m_chksum; }
+private:
+  uint32_t m_chksum;
+};
+
+// ------------------------------------------------------------------
+
+class encryption_info_command : public load_command
+{
+public:
+  encryption_info_command(const load_command_bytes& cmd, const mach_object& obj);
+  uint32_t cryptoff() const { return m_cryptoff; }
+  uint32_t cryptsize() const { return m_cryptsize; }
+  uint32_t cryptid() const { return m_cryptid; }
+
+private:
+  uint32_t m_cryptoff,
+           m_cryptsize,
+           m_cryptid;
+};
+
+class encryption_info_command_64 : public encryption_info_command
+{
+public:
+  encryption_info_command_64(const load_command_bytes& cmd, const mach_object& obj)
+    : encryption_info_command{cmd, obj}
+  {}
+private:
+  uint32_t m_pad; // only padding to make it to multiple of 8
+};
+
+// ------------------------------------------------------------------
+
+class version_min_command : public load_command
+{
+public:
+  version_min_command(const load_command_bytes& cmd, const mach_object& obj);
+  uint32_t version() const { return m_version; } // X.Y.Z is encoded in nibbles xxxx.yy.zz
+  uint32_t sdk() const { return m_sdk; }   // X.Y.Z is encoded in nibbles xxxx.yy.zz
+private:
+  uint32_t m_version, m_sdk;
+};
+
+// ------------------------------------------------------------------
+
+class dyld_info_command : public load_command
+{
+public:
+  dyld_info_command(const load_command_bytes& cmd, const mach_object& obj);
+  uint32_t rebase_off() const { return m_rebase_off; }
+  uint32_t rebase_size() const { return m_rebase_size; }
+  uint32_t bind_off() const { return m_bind_off; }
+  uint32_t bind_size() const { return m_bind_size; }
+  uint32_t weak_bind_off() const { return m_weak_bind_off; }
+  uint32_t weak_bind_size() const { return m_weak_bind_size; }
+  uint32_t lazy_bind_off() const { return m_lazy_bind_off; }
+  uint32_t lazy_bind_size() const { return m_lazy_bind_size; }
+  uint32_t export_off() const { return m_export_off; }
+  uint32_t export_size() const { return m_export_size; }
+
+private:
+  uint32_t m_rebase_off,
+           m_rebase_size,
+           m_bind_off,
+           m_bind_size,
+           m_weak_bind_off,
+           m_weak_bind_size,
+           m_lazy_bind_off,
+           m_lazy_bind_size,
+           m_export_off,
+           m_export_size;
+};
+
+// ------------------------------------------------------------------
+
+class build_version_command : public load_command
+{
+public:
+  build_version_command(const load_command_bytes& cmd, const mach_object& obj);
+  Platforms platform() const { return m_platform; }
+  uint32_t minos() const { return m_minos; }
+  uint32_t sdk() const { return m_sdk; }
+  uint32_t tools() const { return m_tools; }
+private:
+  Platforms m_platform;
+  uint32_t m_minos, m_sdk, m_tools;
+};
+
+class build_tool_version
+{
+public:
+  build_tool_version(const char* bytes, const mach_object& obj);
+  Tools tool() const { return m_tool; }
+  uint32_t version() const { return m_version; }
+
+private:
+  Tools m_tool;
+  uint32_t m_version;
+};
+
+// ------------------------------------------------------------------
+
+class linker_option_command : public load_command
+{
+public:
+  linker_option_command(const load_command_bytes& cmd, const mach_object& obj);
+  uint32_t count() const { return m_count; }
+private:
+  uint32_t m_count;
+};
+
+// ------------------------------------------------------------------
+
+class fvmfile_command : public load_command
+{
+public:
+  fvmfile_command(const load_command_bytes& cmd, const mach_object& obj);
+  lc_str name() const { return m_name; }
+  uint32_t header_addr() const { return m_header_addr; }
+private:
+  lc_str m_name;
+  uint32_t m_header_addr;
+};
+
+// ------------------------------------------------------------------
+
+class entry_point_command : public load_command
+{
+public:
+  entry_point_command(const load_command_bytes& cmd, const mach_object& obj);
+  uint64_t entryoff() const { return m_entryoff; }
+  uint64_t stacksize() const { return m_stacksize; }
+private:
+  uint64_t m_entryoff, m_stacksize;
+};
+
+// ------------------------------------------------------------------
+
+class source_version_command : public load_command
+{
+public:
+  source_version_command(const load_command_bytes& cmd, const mach_object& obj);
+  uint64_t version() const { return m_version; } // A.B.C.D.E packed as a24.b10.c10.d10.e10
+private:
+  uint64_t m_version;
 };
 
 // ------------------------------------------------------------------
@@ -785,7 +1122,64 @@ public:
 
 private:
   std::stringstream& hexdump(
-    std::stringstream& ss, const load_command_bytes& cmd) const;
+    std::stringstream& ss, const char* buf, size_t nBytes) const;
+
+  std::string versionStr(uint32_t version) const;
+  std::string timestampStr(uint32_t timestamp) const;
+  template<typename T>
+  std::string hexString(T addr) const
+  {
+    std::stringstream ss;
+    ss << "0x" << std::hex
+          << std::setw(sizeof(T))
+          << std::setfill('0') << addr;
+    return ss.str();
+  }
+
+  std::string toUUID(const char* uuid) const;
+
+  std::string toChkSumStr(uint32_t chksum) const;
+
+  std::string sourceVersionStr(uint64_t version) const;
+
+  template<typename T, typename U>
+  std::string parseSegment(const load_command_bytes& cmd) const
+  {
+    std::stringstream ss;
+    T seg{cmd, *m_obj};
+    ss << "  segname " << seg.segname() << "\n"
+        << "  vmaddr " << hexString(seg.vmaddr()) << "\n";
+    ss  << "  fileoff " << seg.fileoff() << "\n"
+        << "  filesize " << seg.filesize() <<"\n"
+        << "  maxprot " << seg.maxprot() << "\n"
+        << "  initprot " << seg.initprot() << "\n"
+        << "  nsects " << seg.nsects() << "\n"
+        << "  flags " << seg.flags() << "\n";
+
+    for (size_t i = 0; i < seg.nsects(); ++i) {
+      size_t offset = sizeof(T) - sizeof(load_command);
+      offset += sizeof(U) * i;
+      U sec{&cmd.bytes[offset], *m_obj};
+
+      ss << " Section " << "-------------------\n"
+          << "   sectname " << sec.sectname() << "\n"
+          << "   segname " << sec.segname() << "\n"
+          << "   addr " << hexString(sec.addr()) << "\n"
+          << "   size " << sec.size() << "\n"
+          << "   offset " << sec.offset() << "\n"
+          << "   align " << sec.align() << "\n"
+          << "   reloff " << sec.reloff() << "\n"
+          << "   nreloc " << sec.nreloc() << "\n"
+          << "   flags " << hexString(sec.flags()) << "\n"
+          << "   reserved1 " << sec.reserved1() << "\n"
+          << "   reserved2 " << sec.reserved2() << "\n";
+      if constexpr(std::is_same_v<section_64, U>)
+        ss << "   reserved3 " << sec.reserved3() << "\n";
+    }
+    return ss.str();
+  }
+
+
   const mach_object* m_obj;
 };
 

@@ -62,7 +62,9 @@ MachO::FiletypeStr(FileType type)
   case MH_DSYM:         return "MH_DSYM";
   case MH_KEXT_BUNDLE:  return "MH_KEXT_BUNDLE";
   }
-  return "MH_FILETYPE_UNKNOWN";
+  static char buf[40] = {0};
+  sprintf(buf, "MH_FILETYPE_UNKNOWN (%2x)", (uint32_t)type);
+  return buf;
 }
 
 const char*
@@ -97,7 +99,9 @@ MachO::FlagsStr(Flags flag)
   case MH_NO_HEAP_EXECUTION:        return "MH_NO_HEAP_EXECUTION";
   case MH_APP_EXTENSION_SAFE:       return "MH_APP_EXTENSION_SAFE";
   }
-  return "MH_FLAG_UNKNOWN";
+  static char buf[40] = {0};
+  sprintf(buf, "MH_FLAG_UNKOWN (%2x)", (uint32_t)flag);
+  return buf;
 }
 
 const char*
@@ -119,7 +123,9 @@ MachO::CpuTypeStr(CpuType type)
   case MH_POWERPC:   return "MH_POWERPC";
   case MH_POWERPC64: return "MH_POWERPC64";
   }
-  return "MH_CPU_UNKNOWN";
+  static char buf[40] = {0};
+  sprintf(buf, "MH_CPU_UNKOWN (%2x)", (uint32_t)type);
+  return buf;
 }
 
 
@@ -177,8 +183,38 @@ MachO::LoadCmdStr(LoadCmds cmd)
   case LC_VERSION_MIN_TVOS:          return "LC_VERSION_MIN_TVOS";
   case LC_VERSION_MIN_WATCHOS:       return "LC_VERSION_MIN_WATCHOS";
   case LC_NOTE:                      return "LC_NOTE";
+  case LC_BUILD_VERSION:             return "LC_BUILD_VERSION";
   }
-  return "LC_UNKNOWN";
+  static char buf[40] = {0};
+  sprintf(buf, "LC_UNKNOWN (0x%x)", cmd);
+  return buf;
+}
+
+const char*
+MachO::ToolsStr(Tools tool)
+{
+  switch (tool) {
+  case TOOL_CLANG: return "TOOL_CLANG";
+  case TOOL_SWIFT: return "TOOL_SWIFT";
+  case TOOL_LD:    return "TOOL_LD";
+  }
+  static char buf[40] = {0};
+  sprintf(buf, "UNKNOWN TOOL (%2x)", (uint32_t)tool);
+  return buf;
+}
+
+const char*
+MachO::PlatformsStr(Platforms platform)
+{
+  switch (platform) {
+  case PLATFORM_MACOS: return "PLATFORM_MACOS";
+  case PLATFORM_IOS: return "PLATFORM_IOS";
+  case PLATFORM_TVOS: return "PLATFORM_TVOS";
+  case PLATFORM_WATCH: return "PLATFORM_WATCH";
+  }
+  static char buf[40] = {0};
+  sprintf(buf, "UNKNOWN PLATFORM (%2x)", (uint32_t)platform);
+  return buf;
 }
 
 // ------------------------------------------------------------
@@ -344,14 +380,13 @@ _lcStr::_lcStr()
   : ptr64bit{nullptr}
 {}
 
-_lcStr::_lcStr(const char* bytes, const mach_object* obj)
-  : ptr64bit{nullptr}
+_lcStr::_lcStr(const char* bytes, const mach_object& obj)
 {
-  if (obj->is64bits()) {
+  if (obj.is64bits()) {
     uint64_t ofs = (uint64_t)bytes[0];
-    ptr64bit = (char*)obj->endian(ofs);
+    ptr64bit = (char*)obj.endian(ofs);
   } else {
-    offset = (uint32_t)obj->endian((uint32_t)bytes[0]);
+    offset = (uint32_t)obj.endian((uint32_t)bytes[0]);
   }
 }
 
@@ -362,9 +397,10 @@ load_command::load_command()
   , m_cmdsize{0}
 {}
 
-load_command::load_command(const load_command_bytes& cmd)
-  : m_cmd{cmd.cmd()}
-  , m_cmdsize{cmd.cmdsize()}
+load_command::load_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : m_cmd{obj.endian(cmd.cmd())}
+  , m_cmdsize{obj.endian(cmd.cmdsize())}
 {}
 
 // -----------------------------------------------------------
@@ -425,11 +461,13 @@ dylib_command::dylib_command()
 
 dylib_command::dylib_command(
   const load_command_bytes& from, const mach_object& obj
-) : load_command{from}
+) : load_command{from, obj}
+  , m_name{from.bytes.get(), obj}
 {
-  memcpy((void*)&m_name, from.bytes.get(),
-          sizeof(dylib_command) - sizeof(load_command));
-  m_name.ptr64bit = obj.endian(m_name.ptr64bit);
+  const size_t nameOffset = lc_str::lc_STR_OFFSET; // always offset by 4 regardless of 32 or 64 bits
+  auto buf = &from.bytes.get()[nameOffset];
+  memcpy((void*)&m_timestamp,  buf,
+          sizeof(dylib_command) - sizeof(load_command) - nameOffset);
   m_timestamp = obj.endian(m_timestamp);
   m_current_version = obj.endian(m_current_version);
   m_compatibility_version = obj.endian(m_compatibility_version);
@@ -437,72 +475,8 @@ dylib_command::dylib_command(
 
 // -----------------------------------------------------------
 
-segment_command::segment_command(
-  const load_command_bytes& cmd, const mach_object& obj
-)
-  : load_command{cmd}
-{
-  memcpy((void*)m_segname,  cmd.bytes.get(),
-    sizeof(segment_command_64) - sizeof(load_command));
-  // endianness
-  uint32_t* buf = &m_vmaddr;
-  for (size_t i = 0; i < 4; ++i)
-    buf[i] = obj.endian(buf[i]);
-  m_maxprot = obj.endian(m_maxprot);
-  m_initprot = obj.endian(m_initprot);
-  m_nsects = obj.endian(m_nsects);
-  m_flags = obj.endian(m_flags);
-}
-
-segment_command_64::segment_command_64(
-  const load_command_bytes& cmd, const mach_object& obj
-)
-  : load_command{cmd}
-{
-  memcpy((void*)m_segname, cmd.bytes.get(),
-    sizeof(segment_command_64) - sizeof(load_command));
-  // endianess
-  uint64_t* buf = &m_vmaddr;
-  for (size_t i = 0; i < 4; ++i)
-    buf[i] = obj.endian(buf[i]);
-  m_maxprot = obj.endian(m_maxprot);
-  m_initprot = obj.endian(m_initprot);
-  m_nsects = obj.endian(m_nsects);
-  m_flags = obj.endian(m_flags);
-}
-
-// -----------------------------------------------------------
-
-section::section()
-  : m_sectname{0}
-  , m_segname{0}
-  , m_addr{0}
-  , m_size{0}
-  , m_offset{0}
-  , m_align{0}
-  , m_reloff{0}
-  , m_flags{0}
-  , m_reserved1{0}
-  , m_reserved2{0}
-{}
-
-section::section(const char* bytes, const mach_object& obj)
-{
-  memcpy((void*)this, (void*)bytes, sizeof(section));
-  uint32_t* buf = &m_addr;
-  for (size_t i = 0; i < 9; ++i)
-    buf[i] = obj.endian(buf[i]);
-}
-
-// -----------------------------------------------------------
-
-section_64::section_64()
-  : section{}
-  , m_reserved3{0}
-{}
-
 section_64::section_64(const char* bytes, const mach_object& obj)
-  : section(bytes, obj)
+  : _section<uint64_t>(bytes, obj)
 {
   m_reserved3 = obj.endian(m_reserved3);
 }
@@ -517,7 +491,7 @@ linkedit_data_command::linkedit_data_command()
 
 linkedit_data_command::linkedit_data_command(
   const load_command_bytes& cmd, const mach_object& obj
-) : load_command{cmd}
+) : load_command{cmd, obj}
 {
   memcpy((void*)&m_dataoff, (void*)cmd.bytes.get(),
     sizeof(linkedit_data_command) - sizeof(load_command));
@@ -672,7 +646,7 @@ mach_object::rpaths() const
   std::vector<Path> rpaths;
   for (const auto& loadCmd : m_load_cmds) {
     if (loadCmd.cmd() == LC_RPATH) {
-      lc_str lc{loadCmd.bytes.get(), this};
+      lc_str lc(loadCmd.bytes.get(), *this);
       auto str = &loadCmd.bytes.get()
         [lc.offset - sizeof(load_command)];
       rpaths.emplace_back((char*)str);
@@ -771,6 +745,185 @@ mach_object::changeReexportDylibPaths()
   std::cerr << "Unimplemented\n";
 }
 
+// -----------------------------------------------------------
+
+fwlib_command::fwlib_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+  , m_name{cmd.bytes.get(), obj}
+{
+  memcpy((void*)&m_minor_version, &cmd.bytes.get()[lc_str::lc_STR_OFFSET],
+         sizeof(fwlib_command) - sizeof(load_command) - lc_str::lc_STR_OFFSET);
+}
+
+
+// -----------------------------------------------------------
+
+prebound_dylib_command::prebound_dylib_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+  , m_name{cmd.bytes.get(), obj}
+  , m_linked_modules{
+      &cmd.bytes.get()
+        [lc_str::lc_STR_OFFSET + sizeof(m_nmodules)],
+      obj
+    }
+{
+  memcpy((void*)&m_nmodules, (void*)&cmd.bytes.get()
+          [lc_str::lc_STR_OFFSET], sizeof(m_nmodules));
+  m_nmodules = obj.endian(m_nmodules);
+}
+
+// -----------------------------------------------------------
+
+symtab_command::symtab_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+{
+  memcpy((void*)&m_symoff, cmd.bytes.get(),
+        sizeof(symtab_command) - sizeof(load_command));
+  uint32_t* buf = &m_symoff;
+  for (size_t i = 0; i < 4; ++i)
+    buf[i] = obj.endian(buf[i]);
+}
+
+// -----------------------------------------------------------
+
+dysymtab_command::dysymtab_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+{
+  constexpr size_t mysize = sizeof(dysymtab_command)
+                          - sizeof(load_command);
+  memcpy((void*)&m_ilocalsym, cmd.bytes.get(), mysize);
+  uint32_t *buf = &m_ilocalsym;
+  for (size_t i = 0; i < mysize; ++i)
+    buf[i] = obj.endian(buf[i]);
+}
+
+// ----------------------------------------------------------
+
+prebind_checksum_command::prebind_checksum_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+  , m_chksum(obj.endian((uint32_t)cmd.bytes.get()[0]))
+{}
+
+// ----------------------------------------------------------
+
+twolevel_hints_command::twolevel_hints_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+{
+  uint32_t *buf = (uint32_t*)cmd.bytes.get();
+  uint32_t *me = &m_offset;
+  for(size_t i = 0; i < 2; ++i)
+    me[i] = buf[i];
+}
+
+twolevel_hint::twolevel_hint(
+  const char* buf, const mach_object& obj
+) {
+  uint32_t *me = (uint32_t*)this;
+  *me = obj.endian((uint32_t)buf[0]);
+}
+
+// ----------------------------------------------------------
+
+encryption_info_command::encryption_info_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+{
+  constexpr size_t mysize = sizeof(encryption_info_command)
+                          - sizeof(load_command);
+  memcpy((void*)&m_cryptoff, cmd.bytes.get(), mysize);
+  uint32_t *buf = &m_cryptoff;
+  for (size_t i = 0; i < mysize; ++i)
+    buf[i] = obj.endian(buf[i]);
+}
+
+// -----------------------------------------------------------
+
+version_min_command::version_min_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+{
+  uint32_t *buf = (uint32_t*)cmd.bytes.get();
+  m_version = obj.endian(buf[0]);
+  m_sdk = obj.endian(buf[1]);
+}
+
+// -----------------------------------------------------------
+
+build_version_command::build_version_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+{
+  uint32_t *buf = (uint32_t*)cmd.bytes.get();
+  uint32_t *me = (uint32_t*)&m_platform;
+  for(size_t i = 0; i < 4; ++i)
+    me[i] = obj.endian(buf[i]);
+}
+
+build_tool_version::build_tool_version(
+  const char* bytes, const mach_object& obj
+) {
+  uint32_t *buf = (uint32_t*)bytes;
+  uint32_t *me = (uint32_t*)&m_tool;
+  for (size_t i = 0; i < 2; ++i)
+    me[i] = obj.endian(buf[i]);
+}
+
+// -----------------------------------------------------------
+
+dyld_info_command::dyld_info_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+{
+  uint32_t *buf = (uint32_t*)cmd.bytes.get();
+  uint32_t *me = &m_rebase_off;
+  for (size_t i = 0; i < 10; ++i)
+    me[i] = buf[i];
+}
+
+// -----------------------------------------------------------
+
+linker_option_command::linker_option_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+  , m_count(obj.endian((uint32_t)cmd.bytes.get()[0]))
+{}
+
+// -----------------------------------------------------------
+
+fvmfile_command::fvmfile_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+  , m_name{cmd.bytes.get(), obj}
+{
+  m_header_addr = obj.endian((uint32_t)cmd.bytes.get()[lc_str::lc_STR_OFFSET]);
+}
+
+// -----------------------------------------------------------
+
+entry_point_command::entry_point_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+{
+  uint64_t *me = (uint64_t*)this;
+  uint64_t *buf = (uint64_t*)cmd.bytes.get();
+  for ( size_t i = 0; i < 2; ++i)
+    me[i] = obj.endian(buf[i]);
+}
+
+// -----------------------------------------------------------
+
+source_version_command::source_version_command(
+  const load_command_bytes& cmd, const mach_object& obj
+) : load_command{cmd, obj}
+{
+  m_version = obj.endian((uint64_t)cmd.bytes.get()[0]);
+}
 
 // -----------------------------------------------------------
 
@@ -909,46 +1062,247 @@ introspect_object::loadCmds() const
   };
 
   std::stringstream ss;
+  int cmdNr = 0;
   for (const auto& cmd : m_obj->loadCommands()) {
     ss << std::setw(9) << std::right
-       << "Load command " << (uint32_t)cmd.cmd() << "\n"
-       << "  " << LoadCmdStr(cmd.cmd()) << "\n"
+       << "Load command " << cmdNr++ << "\n"
+       << " cmd " << LoadCmdStr(cmd.cmd()) << "\n"
        << "  cmdsize " << cmd.cmdsize() << "\n";
 
-
     switch (cmd.cmd()) {
+    case LC_SUB_FRAMEWORK: {
+      lc_str lc{cmd.bytes.get(), *m_obj};
+      ss << "  umbrella " << getStr(lc, cmd) << "\n";
+    } break;
+    case LC_SUB_CLIENT:{
+      lc_str lc{cmd.bytes.get(), *m_obj};
+      ss << "  sub_umbrella " << getStr(lc, cmd) << "\n";
+    } break;
+    case LC_SUB_LIBRARY:{
+      lc_str lc{cmd.bytes.get(), *m_obj};
+      ss << "  sub_library " << getStr(lc, cmd) << "\n";
+    } break;
+    case LC_ID_DYLINKER:
+    case LC_LOAD_DYLINKER:
+		case LC_DYLD_ENVIRONMENT:{
+      lc_str lc{cmd.bytes.get(), *m_obj};
+      ss << "  name " << getStr(lc, cmd) << "\n";
+    } break;
+    case LC_PREBOUND_DYLIB: {
+      prebound_dylib_command pre{cmd, *m_obj};
+      ss << "  name " << getStr(pre.name(), cmd) << "\n"
+         << "  nmodules " << pre.nmodules() << "\n"
+         << "  linked_modules " << getStr(pre.linked_modules(), cmd)
+         << "\n";
+    } break;
+    case LC_ROUTINES: {
+      routines_command rout{cmd, *m_obj};
+      ss << "  init_address " << rout.init_address() << "\n"
+         << "  init_module " << rout.init_module() << "\n"
+         << "  reserved1 " << rout.reserved1() << "\n"
+         << "  reserved2 " << rout.reserved2() << "\n"
+         << "  reserved3 " << rout.reserved3() << "\n"
+         << "  reserved4 " << rout.reserved4() << "\n"
+         << "  reserved5 " << rout.reserved5() << "\n"
+         << "  reserved6 " << rout.reserved6() << "\n";
+
+    } break;
+    case LC_ROUTINES_64: {
+      routines_command_64 rout{cmd, *m_obj};
+      ss << "  init_address " << rout.init_address() << "\n"
+         << "  init_module " << rout.init_module() << "\n"
+         << "  reserved1 " << rout.reserved1() << "\n"
+         << "  reserved2 " << rout.reserved2() << "\n"
+         << "  reserved3 " << rout.reserved3() << "\n"
+         << "  reserved4 " << rout.reserved4() << "\n"
+         << "  reserved5 " << rout.reserved5() << "\n"
+         << "  reserved6 " << rout.reserved6() << "\n";
+
+    } break;
+    case LC_SYMTAB: {
+      symtab_command sym{cmd, *m_obj};
+      ss << "  symoff " << sym.symoff() << "\n"
+         << "  syms " << sym.syms() << "\n"
+         << "  stroff " << sym.stroff() << "\n"
+         << "  strsize " << sym.strsize() << "\n";
+    } break;
+    case LC_DYSYMTAB: {
+      dysymtab_command dsym{cmd, *m_obj};
+      ss << "  ilocalsym " << dsym.ilocalsym() << "\n"
+         << "  nlocalsym " << dsym.nlocalsym() << "\n"
+         << "  iextsym "  << dsym.iextsym() << "\n"
+         << "  nextsym " << dsym.nextsym() << "\n"
+         << "  iundefsym " << dsym.iundefsym() << "\n"
+         << "  nundefsym " << dsym.nundefsym() << "\n"
+         << "  tocoff " << dsym.tocoff() << "\n"
+         << "  ntoc " << dsym.ntoc() << "\n"
+         << "  modtaboff " << dsym.modtaboff() << "\n"
+         << "  nmodtab " << dsym.nmodtab() << "\n"
+         << "  extrefsymoff " << dsym.extrefsymoff() << "\n"
+         << "  nextrefsyms " << dsym.nextrefsyms() << "\n"
+         << "  indirectsymsoff " << dsym.indirectsymsoff() << "\n"
+         << "  nindrectsyms " << dsym.nindrectsyms() << "\n"
+         << "  extreloff " << dsym.extreloff() << "\n"
+         << "  nextrel " << dsym.nextrel() << "\n"
+         << "  locreloff " << dsym.locreloff() << "\n"
+         << "  locrel " << dsym.locrel() << "\n";
+    } break;
+    case LC_DYLD_INFO:
+    case LC_DYLD_INFO_ONLY: {
+      dyld_info_command dinfo{cmd, *m_obj};
+      ss << "  rebase_off " << dinfo.rebase_off() << "\n"
+         << "  rebase_size " << dinfo.rebase_size() << "\n"
+         << "  bind_off " << dinfo.bind_off() << "\n"
+         << "  bind_size " << dinfo.bind_size() << "\n"
+         << "  weak_bind_off " << dinfo.weak_bind_off() << "\n"
+         << "  weak_bind_size " << dinfo.weak_bind_size() << "\n"
+         << "  lazy_bind_off " << dinfo.lazy_bind_off() << "\n"
+         << "  lazy_bind_size " << dinfo.lazy_bind_size() << "\n"
+         << "  export_off " << dinfo.export_off() << "\n"
+         << "  export_size " << dinfo.export_size() << "\n";
+
+    } break;
+    case LC_TWOLEVEL_HINTS: {
+      twolevel_hints_command lvl{cmd, *m_obj};
+      ss << "  offset " << lvl.offset() << "\n"
+         << "  nhints " << lvl.nhints() << "\n";
+      if (lvl.nhints())
+        ss << "Hints ----------------------------------\n";
+      for (size_t i = 0; i < lvl.nhints(); ++i) {
+        size_t offset = sizeof(twolevel_hints_command) - sizeof(load_command);
+        offset += sizeof(twolevel_hint) * i;
+        twolevel_hint hint{&cmd.bytes.get()[offset], *m_obj};
+        ss << "    isubimage " << hint.isubimage() << "\n"
+           << "    itoc " << hint.itoc() << "\n";
+      }
+    } break;
+    case LC_SOURCE_VERSION: {
+      source_version_command src{cmd, *m_obj};
+      ss << "  version " << sourceVersionStr(src.version()) << "\n";
+
+    } break;
+    case LC_VERSION_MIN_MACOSX:
+		case LC_VERSION_MIN_IPHONEOS:
+		case LC_VERSION_MIN_WATCHOS:
+		case LC_VERSION_MIN_TVOS: {
+      version_min_command ver{cmd, *m_obj};
+      ss << "  version " << versionStr(ver.version()) << "\n"
+         << "  sdk " << versionStr(ver.sdk()) << "\n";
+    } break;
+    case LC_BUILD_VERSION: {
+      build_version_command bver{cmd, *m_obj};
+      ss << "  platform " << PlatformsStr(bver.platform()) << "\n"
+         << "  minos " << versionStr(bver.minos()) << "\n"
+         << "  sdk " << versionStr(bver.sdk()) << "\n"
+         << "  tools " << bver.tools() << "\n";
+         if (bver.tools())
+           ss << "Tools ------------------------------\n   tool:\n";
+      for (size_t i = 0; i < bver.tools(); ++i) {
+        size_t offset = sizeof(build_version_command) - sizeof(load_command);
+        offset += sizeof(build_tool_version) * i;
+        build_tool_version tver{&cmd.bytes.get()[offset], *m_obj};
+        ss << "    tool " << ToolsStr(tver.tool()) << "\n"
+           << "    version " << versionStr(tver.version()) << "\n";
+      }
+    } break;
+    case LC_IDFVMLIB:
+    case LC_LOADFVMLIB: {
+      fwlib_command fwlib{cmd, *m_obj};
+      ss << "  name " << getStr(fwlib.name(), cmd) << "\n"
+         << "  minor_version " << fwlib.minor_version() << "\n";
+    } break;
+    case LC_PREBIND_CKSUM: {
+      prebind_checksum_command pre{cmd, *m_obj};
+      ss << "  chksum " << toChkSumStr(pre.chksum()) << "\n";
+    } break;
+    case LC_UUID:
+      // should always be stored as bigendian
+      ss << "  uuid " << toUUID(cmd.bytes.get()) << "\n";
+      break;
+    case LC_SEGMENT:
+      ss << parseSegment<segment_command, section>(cmd);
+      break;
+    case LC_SEGMENT_64:
+      ss << parseSegment<segment_command_64, section_64>(cmd);
+      break;
     case LC_LOAD_DYLIB:
     case LC_LOAD_WEAK_DYLIB:
     case LC_REEXPORT_DYLIB: {
       dylib_command dylib{cmd, *m_obj};
       ss << "  name " << getStr(dylib.name(), cmd) << "\n"
-         << "  timestamp " << dylib.timestamp() << "\n"
-         << "  current_version " << dylib.current_version() << "\n"
-         << "  compatibility_version " << dylib.compatibility_version() << "\n";
+         << "  timestamp " <<
+          timestampStr(dylib.timestamp()) << "\n"
+         << "  current_version " <<
+          versionStr(dylib.current_version()) << "\n"
+         << "  compatibility_version " <<
+          versionStr(dylib.compatibility_version()) << "\n";
     } break;
     case LC_RPATH: {
-      lc_str lc{cmd.bytes.get(), m_obj};
+      lc_str lc{cmd.bytes.get(), *m_obj};
       ss << "  path " << getStr(lc, cmd) << "\n";
     } break;
+    case LC_CODE_SIGNATURE:
+    case LC_SEGMENT_SPLIT_INFO:
+    case LC_FUNCTION_STARTS:
+    case LC_DATA_IN_CODE:
+		case LC_DYLIB_CODE_SIGN_DRS:
+    case LC_LINKER_OPTIMIZATION_HINT: {
+      linkedit_data_command link{cmd, *m_obj};
+      ss << "  dataoff " << link.dataoff() << "\n"
+            "  datasize " << link.datasize() << "\n";
+    } break;
+    case LC_LINKER_OPTION: {
+      linker_option_command opt{cmd, *m_obj};
+      ss << "  count " << opt.count() << "\n";
+      if (opt.count())
+        ss << "Options ---------------------------\n";
+      for (size_t i = 0, len = 0; i < opt.count(); ++i) {
+        size_t offset = sizeof(linker_option_command);
+        offset += len;
+        len = strnlen(&cmd.bytes.get()[offset], cmd.cmdsize());
+        ss << "    " << &cmd.bytes.get()[offset] << "\n";
+      }
+    } break;
+    case LC_ENCRYPTION_INFO:
+    case LC_ENCRYPTION_INFO_64: {
+      encryption_info_command enc{cmd, *m_obj};
+      ss << "  cryptoff " << enc.cryptoff() << "\n"
+         << "  cryptsize " << enc.cryptsize() << "\n"
+         << "  cryptid" << enc.cryptid() << "\n";
+    } break;
+    case LC_MAIN: {
+      entry_point_command ent{cmd, *m_obj};
+      ss << "  entryoff " << ent.entryoff() << "\n"
+         << "  stacksize " << ent.stacksize() << "\n";
+    } break;
+    case LC_FVMFILE: {
+      fvmfile_command fvm{cmd, *m_obj};
+      ss << "  name " << getStr(fvm.name(), cmd) << "\n";
+      ss << "  header_addr " << std::setfill('0')
+         << std::setw(8)  << std::hex << fvm.header_addr();
+    } break;
     default:{
-      hexdump(ss, cmd);
+      hexdump(ss, cmd.bytes.get(),
+        cmd.cmdsize() - sizeof(load_command));
     } break;
     }
+
+    ss << "-----------------------------------------------\n";
   }
   return ss.str();
 }
 
 std::stringstream&
 introspect_object::hexdump(
-  std::stringstream& ss, const load_command_bytes& cmd
+  std::stringstream& ss, const char* buf, size_t nBytes
 ) const {
-  ss << std::setw(9) << "  bits:\n";
-  for (size_t i = 0; i < cmd.cmdsize(); i += 16) {
+  ss << "  bits:\n";
+  for (size_t i = 0; i < nBytes; i += 16) {
     ss << "  " << std::setfill('0') << std::setw(8)
         << std::hex << i << std::setw(2);
 
     for (size_t j = 0; j < 16; ++j) {
-      auto byte = cmd.bytes.get()[i+j];
+      auto byte = buf[i+j];
       ss << " " << std::right << std::setfill('0')
           << std::setw(2) << std::hex
           << ((uint16_t)byte & 0x00FF);
@@ -956,7 +1310,7 @@ introspect_object::hexdump(
 
     ss << "  " << std::setw(0);
     for ( size_t j = 0; j < 16; ++j) {
-      auto byte = cmd.bytes.get()[i+j];
+      auto byte = buf[i+j];
       ss << (byte >= ' ' ? byte : '.') << ' ';
     }
     ss << '\n';
@@ -966,6 +1320,74 @@ introspect_object::hexdump(
 }
 
 
+std::string
+introspect_object::versionStr(uint32_t version) const
+{
+  std::stringstream ss;
+  uint major = ((version >> 16) & 0xFFFF),
+       minor = ((version >> 8) & 0xFF),
+       micro = (version & 0xFF);
+  ss << major << "." << minor << "." << micro;
+  return ss.str();
+}
+
+std::string
+introspect_object::timestampStr(uint32_t timestamp) const
+{
+  time_t temp = timestamp;
+  std::tm* t = std::gmtime(&temp);
+  std::stringstream ss; // or if you're going to print, just input directly into the output stream
+  ss << std::put_time(t, "%Y-%m-%d %I:%M:%S %p");
+  return ss.str();
+}
+
+std::string
+introspect_object::toUUID(const char* uuid) const
+{
+  char buf[40] = {0};
+  char *ptr = buf;
+
+  for (size_t i = 0; i < 16; ++i) {
+    sprintf(ptr, "%02X", uuid[i] & 0xFF);
+    ptr += 2;
+    switch (i) {
+    case 3: case 5: case 7: case 9:
+      *ptr++ = '-';
+    }
+  }
+
+  return buf;
+}
+
+std::string
+introspect_object::toChkSumStr(uint32_t chksum) const
+{
+  char buf[10] = {0};
+  const char *sum = (char*)&chksum;
+  char *ptr = buf;
+  for (size_t i = 0; i < sizeof(chksum); ++i) {
+    sprintf(ptr, "%02X", sum[i]);
+    ptr += 2;
+  }
+  return buf;
+}
+
+std::string
+introspect_object::sourceVersionStr(uint64_t version) const
+{
+  //  A.B.C.D.E packed as a24.b10.c10.d10.e10
+  uint32_t a = (version >> 40) & 0x00FFFFFF,
+           b = (version >> 30) & 0x000003FF,
+           c = (version >> 20) & 0x000003FF,
+           d = (version >> 10) & 0x000003FF,
+           e = (version >> 00) & 0x000003FF;
+  std::stringstream ss;
+  if (a) ss << a << ".";
+  if (b) ss << b << ".";
+  if (c) ss << c << ".";
+  ss << d << "." << e;
+  return ss.str();
+}
 // -----------------------------------------------------------
 
 MachOLoader::MachOLoader(PathRef binPath)
