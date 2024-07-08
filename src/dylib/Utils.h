@@ -37,7 +37,7 @@ THE SOFTWARE.
 
 class Library;
 
-void setWritable(PathRef file);
+void setWritable(PathRef file, bool writable);
 void copyFile(PathRef from, PathRef to);
 
 /// executes a command in the native shell and returns output in string
