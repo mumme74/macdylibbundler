@@ -59,10 +59,11 @@ add_custom_command(
 
 # dylib
 add_executable(dylibtest test_Dylib.cpp)
-target_link_libraries(dylibtest gtest_main dylib)
+target_link_libraries(dylibtest gtest_main gmock_main dylib)
 target_include_directories(
   dylibtest PUBLIC
     ${CMAKE_SOURCE_DIR}/src/dylib
+    ${GTEST_DIR}/googlemock/include
 )
 add_test(NAME dylibtest COMMAND $<TARGET_FILE:dylibtest>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

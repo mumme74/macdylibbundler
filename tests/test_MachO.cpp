@@ -30,7 +30,6 @@ THE SOFTWARE.
 #include <cstdlib>
 #include "Common.h"
 #include "Types.h"
-#include "Tools.h"
 #include "MachO.h"
 
 

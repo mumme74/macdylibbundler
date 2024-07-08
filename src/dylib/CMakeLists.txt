@@ -6,12 +6,14 @@ target_sources(
     Settings.cpp
     Utils.cpp
     ScriptRunner.cpp
+    Tools.cpp
   PUBLIC
     DylibBundler.h
     Settings.h
     Dependency.h
     Utils.h
     ScriptRunner.h
+    Tools.h
 )
 target_link_libraries(dylib PUBLIC common json)
 target_include_directories(
