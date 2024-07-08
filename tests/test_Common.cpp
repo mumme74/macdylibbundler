@@ -453,7 +453,7 @@ public:
   void SetUp() override {
     auto path = fs::path(__FILE__).parent_path() / "testdata" / "libicuio.73.dylib";
     file.open(path, std::ios::binary);
-    ASSERT_EQ(file.fail(), false);
+    ASSERT_FALSE(file.fail());
   }
 
   void TearDown() override {
@@ -465,16 +465,17 @@ public:
 
 TEST_F(MachOTest, readHeader) {
   MachO::mach_object macho(file);
-  EXPECT_EQ(macho.failure(), false);
+  EXPECT_FALSE(macho.failure());
+  EXPECT_FALSE(file.bad());
 
-  EXPECT_EQ(macho.isBigEndian(), false);
+  EXPECT_FALSE(macho.isBigEndian());
   auto type = macho.header64()->cputype();
   EXPECT_STREQ(MachO::CpuTypeStr(type), "MH_X86_64");
 }
 
 TEST_F(MachOTest, readLoadCmds) {
-  testing::internal::CaptureStdout();
   MachO::mach_object macho(file);
+  EXPECT_FALSE(file.bad());
 
   auto dylibs = macho.loadDylibPaths();
   EXPECT_EQ(dylibs.size(), 5);
@@ -483,13 +484,12 @@ TEST_F(MachOTest, readLoadCmds) {
   EXPECT_EQ(dylibs[2].string(), "@executable_path/../libs/libicui18n.73.dylib");
   EXPECT_EQ(dylibs[3].string(), "/usr/lib/libSystem.B.dylib");
   EXPECT_EQ(dylibs[4].string(), "/usr/lib/libc++.1.dylib");
-  //EXPECT_THAT(
-    testing::internal::GetCapturedStdout();
-  //  MatchesRegex(".*cmd LC_LOAD_DYLIB.*"));
+
 }
 
 TEST_F(MachOTest, sections) {
   MachO::mach_object macho(file);
+  EXPECT_FALSE(file.bad());
   auto segm = macho.dataSegments();
   EXPECT_EQ(segm.size(), 3);
   EXPECT_STREQ(segm.at(0)->segname(), "__TEXT");
@@ -499,6 +499,7 @@ TEST_F(MachOTest, sections) {
 
 TEST_F(MachOTest, readToEnd) {
   MachO::mach_object macho{file};
+  EXPECT_FALSE(file.bad());
   auto pos = file.tellg();
   file.seekg(0, file.end);
   auto end = file.tellg();
@@ -531,7 +532,7 @@ struct MachOWrite : ::testing::Test
   bool noDiff() {
     FILE* f1 = fopen(inPath.c_str(),"r");
     FILE* f2 = fopen(outPath.c_str(),"r");
-    int N = 10000;
+    const int N = 10000;
     char buf1[N];
     char buf2[N];
     bool res = false;
@@ -644,6 +645,6 @@ public:
 
 TEST_F(MachOIntropect, loadCmds) {
   MachO::introspect_object insp(macho.get());
-  auto str = insp.loadCmds();
-  std::cout << str << "\n";
+  EXPECT_THAT(insp.loadCmds(),
+    testing::ContainsRegex("cmd LC_LOAD_DYLIB"));
 }

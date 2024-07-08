@@ -35,7 +35,7 @@ struct inputs {
 
   enum Actions {
     Help, ListCmds, RPaths, WeakLoad, ReexportLoad, Load,
-    AllPaths, ExtractTo
+    AllPaths, ExtractTo, ChangeRPaths, ChangeDylibPaths
   };
   static void setInputFile(std::string path) {
     inputFile = Path(path);
@@ -56,9 +56,14 @@ struct inputs {
   static void setOverwriteInput(bool overwrite) {
     inputs::overwriteInputFile = overwrite;
   }
-  static void setArch(std::string arch)
-  {
+  static void setArch(std::string arch) {
     inputs::arch = arch;
+  }
+  static void setOldPath(std::string path) {
+    inputs::oldPath = path;
+  }
+  static void setNewPath(std::string path) {
+    inputs::newPath = path;
   }
 
   static Actions action;
@@ -68,7 +73,7 @@ struct inputs {
 
   static bool overwrite,
               overwriteInputFile;
-  static std::string arch;
+  static std::string arch, oldPath, newPath;
 };
 bool inputs::overwrite = false;
 bool inputs::overwriteInputFile = false;
@@ -76,6 +81,8 @@ Path inputs::inputFile{};
 Path inputs::outputFile{};
 inputs::Actions inputs::action{inputs::Help};
 std::string inputs::arch{};
+std::string inputs::oldPath{};
+std::string inputs::newPath{};
 
 void showHelp();
 
@@ -120,6 +127,18 @@ ArgParser args {
     }
   },
   {
+    nullptr, "change-rpath", "Change rpath in binary",
+    [](){
+      inputs::setAction(inputs::ChangeRPaths);
+    }
+  },
+  {
+    nullptr, "change-dylib-path", "Change dylib path in binary",
+    [](){
+      inputs::setAction(inputs::ChangeDylibPaths);
+    }
+  },
+  {
     nullptr,"extract-arch", "Extract a mach-o object from a fat binary."
     " On non fat binaries it works just like copy",
     [](){
@@ -130,6 +149,14 @@ ArgParser args {
     nullptr,"arch", "Select this architecture in a fat binary. "
                     "Default is first arch in file.",
     inputs::setArch, ArgItem::ReqVluString
+  },
+  {
+    nullptr,"old-path", "Set the path to look for to change",
+    inputs::setOldPath, ArgItem::ReqVluString
+  },
+  {
+    nullptr,"new-path", "Change to this path",
+    inputs::setNewPath, ArgItem::ReqVluString
   },
   {
     nullptr, "force-overwrite",
@@ -145,14 +172,28 @@ ArgParser args {
 
 void showHelp() {
   std::cout << args.programName() << " " << std::endl
-            << args.programName() << " is a utility to inpect, change mach-o binaries.\n" << std::endl;
+            << args.programName() << " is a utility to inspect, change mach-o binaries.\n" << std::endl;
   args.help();
   exit(0);
 }
 
 namespace fs = std::filesystem;
 
-int runAction(const MachO::mach_object& obj, inputs::Actions action)
+int writeToFile(MachO::mach_object& obj)
+{
+  std::ofstream file;
+  file.open(inputs::outputFile, std::ios::out);
+  if (file.bad()) {
+    std::cerr << "Failed to open file '" << inputs::outputFile << "'\n";
+  } else if (obj.write(file)) {
+    std::cout << "Written to " << inputs::outputFile << "\n";
+    return 0;
+  }
+  std::cout << "Failed to write to " << inputs::outputFile << "\n";
+  return 2;
+}
+
+int runAction(MachO::mach_object& obj, inputs::Actions action)
 {
   switch (action) {
   case inputs::RPaths: {
@@ -205,6 +246,27 @@ int runAction(const MachO::mach_object& obj, inputs::Actions action)
     }
 
     obj.write(file);
+  } break;
+  case inputs::ChangeRPaths: {
+    if (inputs::oldPath.empty() || inputs::newPath.empty()) {
+      std::cerr << "Must give both path to look for and to change to.\n";
+      return 2;
+    }
+    if (obj.changeRPath(inputs::oldPath, inputs::newPath))
+      return writeToFile(obj);
+    std::cerr << "Failed to change path, does it exist in this binary?\n";
+    return 2;
+  } break;
+  case inputs::ChangeDylibPaths: {
+    if (inputs::oldPath.empty() || inputs::newPath.empty()) {
+      std::cerr << "Must give both path to look for and to change to.\n";
+      return 2;
+    }
+    if (obj.changeDylibPaths(inputs::oldPath, inputs::newPath))
+      return writeToFile(obj);
+
+    std::cerr << "Failed to change path, does it exist in this binary?\n";
+    return 2;
   } break;
   default:
     std::cerr << "**Unknown action \n";

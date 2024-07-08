@@ -401,9 +401,11 @@ public:
   uint32_t ncmds() const { return m_ncmds; }
   // size of all load commands, may vary
   uint32_t sizeofcmds() const { return m_sizeofcmds; }
+  uint32_t flags() const { return m_flags; }
   bool isBigEndian() const;
   bool is64bits() const;
   bool write(std::ofstream& file, const mach_object& obj) const;
+  void setSizeofcmds(uint32_t sz) { m_sizeofcmds = sz; }
 
 protected:
   uint32_t convertEndian(uint32_t) const;
@@ -446,12 +448,15 @@ public:
   std::vector<const data_segment*> dataSegments() const;
   const std::vector<load_command_bytes>& loadCommands() const;
   bool hasBeenSigned() const;
-  void changeRPath(PathRef oldPath, PathRef newPath);
-  void changeLoadDylibPaths();
-  void changeReexportDylibPaths();
+  bool changeRPath(PathRef oldPath, PathRef newPath);
+  bool changeDylibPaths(PathRef oldPath, PathRef newPath);
   bool write(std::ofstream& file) const;
   bool failure() const;
   size_t startPos() const { return m_start_pos; }
+  std::vector<load_command_bytes*> filterCmds(
+    std::vector<LoadCmds> match) const;
+  std::vector<load_command_bytes*> filterCmds(LoadCmds command) const;
+  size_t dataBegins() const;
 
   template<typename T>
   T endian(T in) const
@@ -468,7 +473,9 @@ private:
   void readCmds(std::ifstream& file);
   void readData(std::ifstream& file);
   std::vector<Path> searchForDylibs(LoadCmds type) const;
-  size_t fileoff() const;
+  // must only be used when command has a single path at end, no other additional data
+  size_t replaceLcStr(load_command_bytes& cmd, uint32_t offset, std::string_view newStr);
+
 
   const size_t m_start_pos;
   std::unique_ptr<mach_header_32> m_hdr;
@@ -530,6 +537,7 @@ struct load_command_bytes : load_command
 {
   load_command_bytes();
   load_command_bytes(std::ifstream& file, mach_object& owner);
+  void setCmdSize(uint32_t size) { m_cmdsize = size; }
   std::unique_ptr<char[]> bytes;
   bool write(std::ofstream& file, const mach_object& obj) const;
 };
@@ -1090,7 +1098,7 @@ public:
   mach_fat_object();
   mach_fat_object(std::ifstream& file);
 
-  const std::vector<mach_object>& objects() const;
+  std::vector<mach_object>& objects();
   const std::vector<fat_arch>& architectures() const;
   bool isBigEndian() const;
 
