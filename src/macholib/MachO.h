@@ -982,10 +982,11 @@ public:
   Platforms platform() const { return m_platform; }
   uint32_t minos() const { return m_minos; }
   uint32_t sdk() const { return m_sdk; }
-  uint32_t tools() const { return m_tools; }
+  Tools tools() const { return m_tools; }
 private:
   Platforms m_platform;
-  uint32_t m_minos, m_sdk, m_tools;
+  uint32_t m_minos, m_sdk;
+  Tools m_tools;
 };
 
 class build_tool_version
@@ -1132,6 +1133,8 @@ public:
 
   std::string loadCmds() const;
 
+  std::string targetInfo() const;
+
 private:
   std::stringstream& hexdump(
     std::stringstream& ss, const char* buf, size_t nBytes) const;
@@ -1155,7 +1158,7 @@ private:
   std::string sourceVersionStr(uint64_t version) const;
 
   template<typename T, typename U>
-  std::string parseSegment(const load_command_bytes& cmd) const
+  std::string segmentToStr(const load_command_bytes& cmd) const
   {
     std::stringstream ss;
     T seg{cmd, *m_obj};
@@ -1190,6 +1193,8 @@ private:
     }
     return ss.str();
   }
+
+  std::string buildVersionToStr(const load_command_bytes& cmd) const;
 
 
   const mach_object* m_obj;

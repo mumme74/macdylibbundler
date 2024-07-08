@@ -1356,22 +1356,9 @@ introspect_object::loadCmds() const
       ss << "  version " << versionStr(ver.version()) << "\n"
          << "  sdk " << versionStr(ver.sdk()) << "\n";
     } break;
-    case LC_BUILD_VERSION: {
-      build_version_command bver{cmd, *m_obj};
-      ss << "  platform " << PlatformsStr(bver.platform()) << "\n"
-         << "  minos " << versionStr(bver.minos()) << "\n"
-         << "  sdk " << versionStr(bver.sdk()) << "\n"
-         << "  tools " << bver.tools() << "\n";
-         if (bver.tools())
-           ss << "Tools ------------------------------\n   tool:\n";
-      for (size_t i = 0; i < bver.tools(); ++i) {
-        size_t offset = sizeof(build_version_command) - sizeof(load_command);
-        offset += sizeof(build_tool_version) * i;
-        build_tool_version tver{&cmd.bytes.get()[offset], *m_obj};
-        ss << "    tool " << ToolsStr(tver.tool()) << "\n"
-           << "    version " << versionStr(tver.version()) << "\n";
-      }
-    } break;
+    case LC_BUILD_VERSION:
+      ss << buildVersionToStr(cmd);
+      break;
     case LC_IDFVMLIB:
     case LC_LOADFVMLIB: {
       fwlib_command fwlib{cmd, *m_obj};
@@ -1387,10 +1374,10 @@ introspect_object::loadCmds() const
       ss << "  uuid " << toUUID(cmd.bytes.get()) << "\n";
       break;
     case LC_SEGMENT:
-      ss << parseSegment<segment_command, section>(cmd);
+      ss << segmentToStr<segment_command, section>(cmd);
       break;
     case LC_SEGMENT_64:
-      ss << parseSegment<segment_command_64, section_64>(cmd);
+      ss << segmentToStr<segment_command_64, section_64>(cmd);
       break;
     case LC_LOAD_DYLIB:
     case LC_LOAD_WEAK_DYLIB:
@@ -1456,6 +1443,38 @@ introspect_object::loadCmds() const
 
     ss << "-----------------------------------------------\n";
   }
+  return ss.str();
+}
+
+std::string
+introspect_object::targetInfo() const
+{
+  auto cmds = m_obj->filterCmds(LC_BUILD_VERSION);
+  if (cmds.size())
+    return buildVersionToStr(*cmds[0]);
+  return "Target info not found!\n";
+}
+
+std::string
+introspect_object::buildVersionToStr(
+  const load_command_bytes& cmd
+) const {
+  std::stringstream ss;
+  build_version_command bver{cmd, *m_obj};
+  ss << "  platform " << PlatformsStr(bver.platform()) << "\n"
+      << "  minos " << versionStr(bver.minos()) << "\n"
+      << "  sdk " << versionStr(bver.sdk()) << "\n"
+      << "  tools " << ToolsStr(bver.tools()) << "\n";
+      if (bver.tools())
+        ss << "Tools ------------------------------\n   tool:\n";
+  for (size_t i = 0; i < bver.tools(); ++i) {
+    size_t offset = sizeof(build_version_command) - sizeof(load_command);
+    offset += sizeof(build_tool_version) * i;
+    build_tool_version tver{&cmd.bytes.get()[offset], *m_obj};
+    ss << "    tool " << ToolsStr(tver.tool()) << "\n"
+        << "    version " << versionStr(tver.version()) << "\n";
+  }
+
   return ss.str();
 }
 

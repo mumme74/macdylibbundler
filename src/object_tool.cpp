@@ -35,7 +35,8 @@ struct inputs {
 
   enum Actions {
     Help, ListCmds, RPaths, WeakLoad, ReexportLoad, Load,
-    AllPaths, ExtractTo, ChangeRPaths, ChangeDylibPaths
+    AllPaths, ExtractTo, ChangeRPaths, ChangeDylibPaths,
+    TargetInfo
   };
   static void setInputFile(std::string path) {
     inputFile = Path(path);
@@ -143,6 +144,12 @@ ArgParser args {
     " On non fat binaries it works just like copy",
     [](){
       inputs::setAction(inputs::ExtractTo);
+    }
+  },
+  {
+    nullptr,"target-info", "Print target info.",
+    [](){
+      inputs::setAction(inputs::TargetInfo);
     }
   },
   {
@@ -267,6 +274,10 @@ int runAction(MachO::mach_object& obj, inputs::Actions action)
 
     std::cerr << "Failed to change path, does it exist in this binary?\n";
     return 2;
+  } break;
+  case inputs::TargetInfo: {
+    MachO::introspect_object insp(&obj);
+    std::cout << insp.targetInfo();
   } break;
   default:
     std::cerr << "**Unknown action \n";
