@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 #include <cstring>
 #include <cassert>
 #include <cmath>
@@ -263,6 +264,18 @@ fat_header::nfat_arch() const
     return isBigEndian() ? reverseEndian(m_nfat_arch) : m_nfat_arch;
 }
 
+bool
+fat_header::write(std::ofstream& file, const mach_fat_object* fat)
+{
+  fat_header cpy{*this};
+  m_nfat_arch = fat->endian(cpy.m_nfat_arch);
+  const size_t sz = sizeof(fat_header);
+  file.write((char*)&cpy, sz);
+  if (file.bad())
+    return false;
+  return true;
+}
+
 // -----------------------------------------------------------
 
 fat_arch::fat_arch()
@@ -280,6 +293,22 @@ fat_arch::fat_arch(std::ifstream& file, const mach_fat_object& fat)
   uint32_t *buf = (uint32_t*)&m_cputype;
   for (size_t i = 0; i < 5; ++i)
     buf[i] = fat.endian(buf[i]);
+}
+
+bool
+fat_arch::write(std::ofstream& file, const mach_fat_object* fat)
+{
+  fat_arch cpy;
+  char* me = (char*)this;
+  char *pCpy = (char*)&cpy;
+  for (size_t i = 0; i < 4; ++i)
+    pCpy[i] = fat->endian(me[i]);
+
+  file.write(pCpy, sizeof(fat_arch));
+  if (!file)
+    return false;
+
+  return true;
 }
 
 // -----------------------------------------------------------
@@ -390,11 +419,22 @@ _lcStr::_lcStr(const char* bytes, const mach_object& obj)
   }
 }
 
+const char*
+_lcStr::str(const char* buf) const
+{
+  return &buf[offset - sizeof(load_command)];
+}
+
 // -----------------------------------------------------------
 
 load_command::load_command()
   : m_cmd{0}
   , m_cmdsize{0}
+{}
+
+load_command::load_command(uint32_t cmd, uint32_t cmdsize)
+  : m_cmd{cmd}
+  , m_cmdsize{cmdsize}
 {}
 
 load_command::load_command(
@@ -408,6 +448,10 @@ load_command::load_command(
 load_command_bytes::load_command_bytes()
   : load_command{}
   , bytes{nullptr}
+{}
+
+load_command_bytes::load_command_bytes(uint32_t cmd, uint32_t cmdsize)
+  : load_command{cmd, cmdsize}
 {}
 
 load_command_bytes::load_command_bytes(
@@ -790,11 +834,10 @@ mach_object::changeRPath(PathRef oldPath, PathRef newPath)
   for (auto& cmd : pathCmds) {
     lc_str lc{cmd->bytes.get(), *this};
     auto pth = &cmd->bytes.get()[lc.offset-sizeof(load_command)];
-    if (pth == oldPath) {
-      lc_str lc{cmd->bytes.get(), *this};
+    if (pth == oldPath)
       return replaceLcStr(*cmd, lc.offset, newPath.string()) > 0;
-    }
   }
+
   return false;
 }
 
@@ -808,13 +851,90 @@ mach_object::changeDylibPaths(PathRef oldPath, PathRef newPath)
     dylib_command dylib{*cmd, *this};
     auto pth = &cmd->bytes.get()[dylib.name().offset-sizeof(load_command)];
     if (pth == oldPath) {
-      dylib_command dylib{*cmd, *this};
       return replaceLcStr(*cmd, dylib.name().offset, newPath.string()) > 0;
     }
   }
+
   return false;
 }
 
+bool
+mach_object::changeId(PathRef id)
+{
+  auto idCmd = filterCmds(LC_ID_DYLIB);
+  if (idCmd.empty())
+    return false;
+
+  auto cmd = idCmd[0];
+
+  dylib_command dylib{*cmd, *this};
+  return replaceLcStr(*cmd, dylib.name().offset, id.string()) > 0;
+}
+
+bool
+mach_object::removeRPath(PathRef rpath)
+{
+  auto found = std::find_if(
+    m_load_cmds.begin(),
+    m_load_cmds.end(),
+    [&](const load_command_bytes& cmd) -> bool {
+      if (cmd.cmd() == LC_RPATH) {
+        lc_str lc{cmd.bytes.get(), *this};
+        return lc.str(cmd.bytes.get()) == rpath;
+      }
+      return false;
+    });
+
+  if (found != m_load_cmds.end()) {
+    m_load_cmds.erase(found);
+    return true;
+  }
+
+  return false;
+}
+
+bool
+mach_object::addRPath(PathRef rpath)
+{
+  auto str = rpath.string();
+  const size_t bytesSz = lc_str::lc_STR_OFFSET + str.size();
+  uint32_t cmdsize = sizeof(load_command) + bytesSz;
+  load_command_bytes cmd{LC_RPATH, cmdsize};
+
+  cmd.bytes = std::make_unique<char[]>(bytesSz);
+
+  lc_str lc; lc.offset = endian(
+    sizeof(load_command) + lc_str::lc_STR_OFFSET);
+  // copy the offset and string into bytes array
+  memcpy((void*)cmd.bytes.get(), &lc.offset, bytesSz);
+  memcpy((void*)&cmd.bytes.get()[lc_str::lc_STR_OFFSET],
+         &lc.offset, bytesSz);
+
+  auto place = [&](const LoadCmds id) -> bool {
+    LoadCmds prev = LC_SEGMENT; // init to not LC_RPATH
+    for (auto it = m_load_cmds.begin(), end = m_load_cmds.end();
+        it != end; ++it)
+    {
+      if (prev == id && it->cmd() != id) {
+        m_load_cmds.emplace(it, std::move(cmd));
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // place it after one of these
+  if (place(LC_RPATH))
+    return true;
+  if (place(LC_LOAD_DYLIB))
+    return true;
+  if (place(LC_SEGMENT_64))
+    return true;
+  if (place(LC_SEGMENT))
+    return true;
+
+  return false;
+}
 
 bool
 mach_object::write(std::ofstream& file) const
@@ -1195,6 +1315,31 @@ mach_fat_object::failure() const
   return !m_hdr || m_fat_arch.empty() || m_objects.empty();
 }
 
+bool
+mach_fat_object::write(std::ofstream& file)
+{
+  if (failure()) return false;
+
+  if (!m_hdr->write(file, this))
+    return false;
+
+  for (auto& arch : m_fat_arch) {
+    if (!arch.write(file, this))
+      return false;
+  }
+
+  auto pos = file.tellp();
+  auto alignPos = pos + (8 - pos % 8);
+  file.seekp(alignPos);
+
+  for (auto& obj : m_objects) {
+    if (obj.write(file))
+      return false;
+  }
+
+  return true;
+}
+
 std::vector<mach_object>&
 mach_fat_object::objects()
 {
@@ -1379,6 +1524,7 @@ introspect_object::loadCmds() const
     case LC_SEGMENT_64:
       ss << segmentToStr<segment_command_64, section_64>(cmd);
       break;
+    case LC_ID_DYLIB:
     case LC_LOAD_DYLIB:
     case LC_LOAD_WEAK_DYLIB:
     case LC_REEXPORT_DYLIB: {
@@ -1578,28 +1724,72 @@ introspect_object::sourceVersionStr(uint64_t version) const
 
 MachOLoader::MachOLoader(PathRef binPath)
   : m_binPath{binPath}
-  , m_error{}
 {
   std::ifstream file;
-  file.open(binPath, std::ios::binary );
+  file.open(binPath, std::ios::binary);
   auto magic = readMagic(file);
   file.seekg(file.beg);
 
-
   switch (magic) {
   case FatMagic: case FatCigam:
-    // read as fat binary
+    m_fat = std::make_unique<mach_fat_object>(file);
+    if (!file) {
+      m_fat.release();
+      std::cerr << "A failure occurred reading fat object\n";
+    }
     break;
   case Magic32: case Cigam32:
-    // read all headers and arch segments
-    break;
   case Magic64: case Cigam64:
-    // read 64 bits
+    m_object = std::make_unique<mach_object>(file);
+    if (!file) {
+      m_object.release();
+      std::cerr << "A failure occurred\n";
+    }
     break;
-  default:
-    m_error = "Not a valid mach-o object";
-    return;
+  default: return;
   }
 }
 
+bool
+MachOLoader::isFat() const
+{
+  return m_fat != nullptr;
+}
+
+bool
+MachOLoader::isObject() const
+{
+  return m_object != nullptr;
+}
+
+bool
+MachOLoader::write(PathRef path, bool overwrite)
+{
+  if (!overwrite && std::filesystem::exists(path))
+    return false;
+
+  std::ofstream file;
+  file.open(path, std::ios::binary);
+  if (!file)
+    return false;
+
+  if (m_fat) {
+    m_fat->write(file);
+  } else if (m_object) {
+    return m_object->write(file);
+  }
+  return false;
+}
+
+mach_fat_object*
+MachOLoader::fatObject()
+{
+  return m_fat.get();
+}
+
+mach_object*
+MachOLoader::object()
+{
+  return m_object.get();
+}
 

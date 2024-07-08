@@ -137,7 +137,7 @@ TEST(Tools_InstallName, id) {
 
 TEST(Tools_InstallName, Defaults) {
   Tools::InstallName tool;
-  EXPECT_EQ(tool.cmd(), "install_name_tool");
+  EXPECT_EQ(tool.cmd(), "");
   EXPECT_EQ(tool.verbose(), false);
 }
 

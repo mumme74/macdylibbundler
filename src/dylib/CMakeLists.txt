@@ -15,9 +15,10 @@ target_sources(
     ScriptRunner.h
     Tools.h
 )
-target_link_libraries(dylib PUBLIC common json)
+target_link_libraries(dylib PUBLIC common json macho)
 target_include_directories(
   dylib PUBLIC
   ${CMAKE_SOURCE_DIR}/src/common
   ${CMAKE_SOURCE_DIR}/src/jsonlib
+  ${CMAKE_SOURCE_DIR}/src/macholib
 )

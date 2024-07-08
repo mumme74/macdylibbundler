@@ -355,6 +355,9 @@ public:
   bool isBigEndian() const;
   /* number of structs that follow */
   uint32_t nfat_arch() const;
+
+  bool write(std::ofstream& file, const mach_fat_object* fat);
+
 private:
 	Magic	    m_magic;
 	uint32_t	m_nfat_arch;
@@ -374,6 +377,8 @@ public:
   uint32_t size() const { return m_size; }
   /* alignment as a power of 2 */
   uint32_t align() const { return m_align; }
+
+  bool write(std::ofstream& file, const mach_fat_object* fat);
 
 private:
 	CpuType	m_cputype;
@@ -450,6 +455,9 @@ public:
   bool hasBeenSigned() const;
   bool changeRPath(PathRef oldPath, PathRef newPath);
   bool changeDylibPaths(PathRef oldPath, PathRef newPath);
+  bool changeId(PathRef id);
+  bool removeRPath(PathRef rpath);
+  bool addRPath(PathRef rpath);
   bool write(std::ofstream& file) const;
   bool failure() const;
   size_t startPos() const { return m_start_pos; }
@@ -497,6 +505,7 @@ typedef union _lcStr
 {
   _lcStr();
   _lcStr(const char* bytes, const mach_object& obj);
+  const char* str(const char* buf) const;
   enum {lc_STR_OFFSET = 4};
 
 	uint32_t	offset;	/* offset to the string */
@@ -523,6 +532,7 @@ class load_command
 {
 public:
   load_command();
+  load_command(uint32_t cmd, uint32_t cmdsize);
   load_command(const load_command_bytes& cmd, const mach_object& obj);
   // the type of command
   LoadCmds cmd() const { return m_cmd; }
@@ -536,6 +546,7 @@ protected:
 struct load_command_bytes : load_command
 {
   load_command_bytes();
+  load_command_bytes(uint32_t cmd, uint32_t cmdsize);
   load_command_bytes(std::ifstream& file, mach_object& owner);
   void setCmdSize(uint32_t size) { m_cmdsize = size; }
   std::unique_ptr<char[]> bytes;
@@ -1105,6 +1116,8 @@ public:
 
   bool failure() const;
 
+  bool write(std::ofstream& file);
+
   template<typename T>
     T endian(T in) const
   {
@@ -1207,19 +1220,20 @@ public:
   MachOLoader(PathRef binPath);
 
   bool isFat() const;
-  bool hasArm() const;
-  bool hasX86() const;
-  uint32_t nArchitectures() const;
-  CpuType cpuFor(int architecture) const;
+  bool isObject() const;
+
+  bool write(PathRef toFile, bool overwrite = false);
+
+  mach_fat_object* fatObject();
+  mach_object* object();
 
 
 private:
   void readHeader(std::ifstream& file);
 
   Path m_binPath;
-  fat_header m_fat_header;
-  fat_arch m_fat_arch;
-  std::string m_error;
+  std::unique_ptr<mach_fat_object> m_fat;
+  std::unique_ptr<mach_object> m_object;
 };
 
 } // namespace Macho

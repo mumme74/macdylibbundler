@@ -32,6 +32,7 @@ THE SOFTWARE.
 #endif
 #include "Tools.h"
 #include "Common.h"
+#include "MachO.h"
 
 using namespace Tools;
 namespace fs = std::filesystem;
@@ -117,7 +118,7 @@ InstallName::InstallName()
   : Base(InstallName::defaultCmd, InstallName::defaultVerbosity)
 {}
 
-std::string InstallName::defaultCmd = "install_name_tool";
+std::string InstallName::defaultCmd;// = "install_name_tool";
 bool InstallName::defaultVerbosity = false;
 
 InstallName::InstallName(std::string_view cmd, bool verbose)
@@ -136,30 +137,97 @@ InstallName::initDefaults(
 void
 InstallName::add_rpath(PathRef rpath, PathRef bin) const
 {
-    std::stringstream ss;
-    ss << m_cmd << " -add_rpath \""<< rpath << "\" "
-       << "\"" << bin << "\"";
+  if (!m_cmd.empty()) {
+    addRPathExternal(rpath, bin);
+  } else {
+    MachO::MachOLoader loader(bin);
 
-    if(systemPrint(ss.str()) != 0) {
-        ss << "\n\nError: An error occurred while trying to fix "
-           << "dependencies of " << bin << " when add_rpath.\n";
-        exitMsg(ss.str());
+    auto change = [&](MachO::mach_object& obj)->void {
+      if (obj.addRPath(rpath))
+        exitMsg(std::string("Could not add rpath on ") + bin.string());
+    };
+
+    auto write = [&]()->void {
+      if (!loader.write(bin, true))
+        exitMsg(std::string("Could not add rpath on ") + bin.string());
+    };
+
+    if (loader.isFat()) {
+      for (auto& slice : loader.fatObject()->objects())
+        change(slice);
+      write();
+
+    } else if (loader.isObject()) {
+      change(*loader.object());
+      write();
+    } else {
+      exitMsg(std::string("Failed to open ") + bin.string() +
+              " not a mach-o object\n");
     }
+  }
+}
+
+void
+InstallName::addRPathExternal(PathRef rpath, PathRef bin) const
+{
+  std::stringstream ss;
+  ss << m_cmd << " -add_rpath \""<< rpath << "\" "
+     << "\"" << bin << "\"";
+
+  if(systemPrint(ss.str()) != 0) {
+    ss << "\n\nError: An error occurred while trying to fix "
+        << "dependencies of " << bin << " when add_rpath.\n";
+    exitMsg(ss.str());
+  }
 }
 
 /// Delete specified rpath
 void
 InstallName::delete_rpath(PathRef rpath, PathRef bin) const
 {
-    std::stringstream ss;
-    ss << m_cmd << " -delete_rpath \""<< rpath << "\" "
-       << "\"" << bin << "\"";
+  if (!m_cmd.empty()) {
+    deleteRpathExternal(rpath, bin);
+  } else {
+    MachO::MachOLoader loader(bin);
 
-    if(systemPrint(ss.str()) != 0) {
-        ss << "\n\nError: An error occurred while trying to fix "
-           << "dependencies of " << bin << " when delete_rpath.\n";
-        exitMsg(ss.str());
+    auto change = [&](MachO::mach_object& obj)->void {
+      if (obj.removeRPath(rpath))
+        exitMsg(std::string("Could not delete_rpath on ") + bin.string());
+    };
+
+    auto write = [&]()->void {
+      if (!loader.write(bin, true))
+        exitMsg(std::string("Could not delete_rpath on ") + bin.string());
+    };
+
+    if (loader.isFat()) {
+      for (auto& slice : loader.fatObject()->objects())
+        change(slice);
+      write();
+
+    } else if (loader.isObject()) {
+      change(*loader.object());
+      write();
+    } else {
+      exitMsg(std::string("Failed to open ") + bin.string() +
+              " not a mach-o object\n");
     }
+  }
+}
+
+
+void
+InstallName::deleteRpathExternal(PathRef rpath, PathRef bin) const
+{
+  std::stringstream ss;
+  ss << m_cmd << " -delete_rpath \""<< rpath << "\" "
+      << "\"" << bin << "\"";
+
+  if(systemPrint(ss.str()) != 0) {
+    ss << "\n\nError: An error occurred while trying to fix "
+       << "dependencies of " << bin << " when delete_rpath.\n";
+    exitMsg(ss.str());
+  }
 }
 
 
@@ -168,47 +236,153 @@ void
 InstallName::change(
   PathRef oldPath, PathRef newPath, PathRef bin
 ) const {
-    std::stringstream ss;
-    ss << m_cmd << " -change \""
-       << oldPath << "\" \"" << newPath << "\" \""
-       << bin << "\"";
+  if (!m_cmd.empty()) {
+    changeExternal(oldPath, newPath, bin);
 
-    if(systemPrint(ss.str()) != 0) {
-        ss << "\n\nError: An error occurred while trying to fix "
-           << "dependencies of " << bin
-           << " when change install name\n";
-        exitMsg(ss.str());
+  } else {
+    MachO::MachOLoader loader(bin);
+
+    auto change = [&](MachO::mach_object& obj)->void {
+      if (obj.changeDylibPaths(oldPath, newPath))
+        exitMsg(std::string("Could not change lib path on ") + bin.string());
+    };
+
+    auto write = [&]()->void {
+      if (!loader.write(bin, true))
+        exitMsg(std::string("Could not change lib path on ") + bin.string());
+    };
+
+    if (loader.isFat()) {
+      for (auto& slice : loader.fatObject()->objects())
+        change(slice);
+      write();
+
+    } else if (loader.isObject()) {
+      change(*loader.object());
+      write();
+    } else {
+      exitMsg(std::string("Failed to open ") + bin.string() +
+              " not a mach-o object\n");
     }
+  }
+}
+
+void
+InstallName::changeExternal(
+  PathRef oldPath, PathRef newPath, PathRef bin
+) const
+{
+  std::stringstream ss;
+  ss << m_cmd << " -change \""
+     << oldPath << "\" \"" << newPath << "\" \""
+     << bin << "\"";
+
+  if(systemPrint(ss.str()) != 0) {
+    ss << "\n\nError: An error occurred while trying to fix "
+       << "dependencies of " << bin
+       << " when change install name\n";
+    exitMsg(ss.str());
+  }
 }
 
 /// Change dynamic library id
 void
 InstallName::id(PathRef id, PathRef bin) const
 {
-    std::stringstream ss;
-    ss << m_cmd << " -id \"" << id << "\" "
-       << "\"" << bin << "\"";
+  if (!m_cmd.empty()) {
+    idExternal(id, bin);
+  } else {
+     if (!m_cmd.empty()) {
+      idExternal(id, bin);
+    } else {
+      MachO::MachOLoader loader(bin);
 
-    if(systemPrint(ss.str()) != 0) {
-        ss << "\n\nError: An error occurred while trying to fix "
-           << "dependencies of " << bin << " when change binary id\n";
-        exitMsg(ss.str());
+      auto change = [&](MachO::mach_object& obj)->void {
+        if (obj.changeId(id))
+          exitMsg(std::string("Could not change id on ") + bin.string());
+      };
+
+      auto write = [&]()->void {
+        if (!loader.write(bin, true))
+          exitMsg(std::string("Could not change id on ") + bin.string());
+      };
+
+      if (loader.isFat()) {
+        for (auto& slice : loader.fatObject()->objects())
+          change(slice);
+        write();
+
+      } else if (loader.isObject()) {
+        change(*loader.object());
+        write();
+      } else {
+        exitMsg(std::string("Failed to open ") + bin.string() +
+                " not a mach-o object\n");
+      }
     }
+  }
+}
+
+void
+InstallName::idExternal(PathRef id, PathRef bin) const
+{
+  std::stringstream ss;
+  ss << m_cmd << " -id \"" << id << "\" "
+     << "\"" << bin << "\"";
+
+  if(systemPrint(ss.str()) != 0) {
+    ss << "\n\nError: An error occurred while trying to fix "
+       << "dependencies of " << bin << " when change binary id\n";
+    exitMsg(ss.str());
+  }
 }
 
 /// Change rpath path name
 void
 InstallName::rpath(PathRef from, PathRef to, PathRef bin) const
 {
-    std::stringstream ss;
-    ss << m_cmd << " -rpath \""<< from << "\" "
-       << "\"" << to << "\" \"" << bin << "\"";
+  if (!m_cmd.empty()) {
+    rpathExternal(from, to, bin);
+  } else {
+    MachO::MachOLoader loader(bin);
 
-    if(systemPrint(ss.str()) != 0) {
-        ss << "\n\nError: An error occurred while trying to fix "
-           << "dependencies of " << bin << " when changing rpath.\n";
-        exitMsg(ss.str());
+    auto change = [&](MachO::mach_object& obj)->void {
+      if (obj.changeRPath(from, to))
+        exitMsg(std::string("Could not change rpath on ") + bin.string());
+    };
+
+    auto write = [&]()->void {
+      if (!loader.write(bin, true))
+        exitMsg(std::string("Could not change rpath on ") + bin.string());
+    };
+
+    if (loader.isFat()) {
+      for (auto& slice : loader.fatObject()->objects())
+        change(slice);
+      write();
+
+    } else if (loader.isObject()) {
+      change(*loader.object());
+      write();
+    } else {
+      exitMsg(std::string("Failed to open ") + bin.string() +
+              " not a mach-o object\n");
     }
+  }
+}
+
+void
+InstallName::rpathExternal(PathRef from, PathRef to, PathRef bin) const
+{
+  std::stringstream ss;
+  ss << m_cmd << " -rpath \""<< from << "\" "
+     << "\"" << to << "\" \"" << bin << "\"";
+
+  if(systemPrint(ss.str()) != 0) {
+    ss << "\n\nError: An error occurred while trying to fix "
+       << "dependencies of " << bin << " when changing rpath.\n";
+    exitMsg(ss.str());
+  }
 }
 
 // -----------------------------------------------------
@@ -221,7 +395,7 @@ OTool::OTool(std::string_view cmd, bool verbose)
   : Base(cmd, verbose)
 {}
 
-std::string OTool::defaultCmd = "otool";
+std::string OTool::defaultCmd; // = "otool";
 bool OTool::defaultVerbosity = false;
 
 void
@@ -236,11 +410,50 @@ OTool::scanBinary(PathRef bin)
 {
   if (!fs::exists(bin))
   {
-      std::cerr << "\n/!\\ WARNING : can't scan a "
-                << "nonexistent file '" << bin << "'\n";
-      return false;
+    std::cerr << "\n/!\\ WARNING : can't scan a "
+              << "nonexistent file '" << bin << "'\n";
+    return false;
   }
 
+  if (!m_cmd.empty())
+    return scanBinaryExternal(bin);
+
+  // using build in macho lib
+  auto getFromObj = [&](MachO::mach_object& obj)->void {
+    std::vector<MachO::LoadCmds> filterIn {
+      MachO::LC_LOAD_DYLIB,
+      MachO::LC_REEXPORT_DYLIB,
+      MachO::LC_LOAD_WEAK_DYLIB
+    };
+
+    for (const auto& cmd : obj.filterCmds(filterIn)) {
+      MachO::dylib_command dylib{*cmd, obj};
+      dependencies.emplace_back(
+        dylib.name().str(cmd->bytes.get()));
+    }
+
+    for (const auto& path : obj.rpaths())
+      rpaths.emplace_back(Path(path));
+  };
+
+  MachO::MachOLoader loader(bin);
+  if (loader.isFat()) {
+    for (auto& slice : loader.fatObject()->objects())
+      getFromObj(slice);
+
+  } else if (loader.isObject()) {
+    getFromObj(*loader.object());
+
+  } else {
+    std::cerr << "Failed to open " << bin << " not a mach-o object\n";
+    exit(2);
+  }
+  return true;
+}
+
+bool
+OTool::scanBinaryExternal(PathRef bin)
+{
   std::stringstream cmd;
   cmd << m_cmd << " -l \"" << bin << "\"";
 
@@ -331,60 +544,63 @@ Codesign::sign(PathRef bin) const
   auto signCommand = signCmd.str();
 
   if (systemPrint(signCommand) != 0 ) {
-      // If the codesigning fails, it may be a bug in Apple's codesign utility.
-      // A known workaround is to copy the file to another inode, then move it back
-      // erasing the previous file. Then sign again.
-      std::cerr << "  * Error : An error occurred while applying "
-                << "ad-hoc signature to " << bin
-                << ". Attempting workaround" << std::endl;
+    // If the codesigning fails, it may be a bug in Apple's codesign utility.
+    // A known workaround is to copy the file to another inode, then move it back
+    // erasing the previous file. Then sign again.
+    std::cerr << "  * Error : An error occurred while applying "
+              << "ad-hoc signature to " << bin
+              << ". Attempting workaround" << std::endl;
 
-      //auto machine = system_get_output("machine");
-      //bool isArm = machine.find("arm") != std::string::npos;
-      bool isArm = false; // TODO Implement
-      auto tempDirTemplate = std::string(std::getenv("TMPDIR") +
-                              std::string("dylibbundler.XXXXXXXX"));
-      std::string filename = bin.filename();
-      char* tmpDirCstr = mkdtemp((char *)(tempDirTemplate.c_str()));
-      if( tmpDirCstr == NULL )
+    //auto machine = system_get_output("machine");
+    //bool isArm = machine.find("arm") != std::string::npos;
+    bool isArm = false; // TODO Implement
+    auto tempDirTemplate = std::string(std::getenv("TMPDIR") +
+                            std::string("dylibbundler.XXXXXXXX"));
+    std::string filename = bin.filename();
+    char* tmpDirCstr = mkdtemp((char *)(tempDirTemplate.c_str()));
+    if( tmpDirCstr == NULL )
+    {
+      std::cerr << "  * Error : Unable to create temp "
+                << "directory for signing workaround"
+                << std::endl;
+      if( isArm )
       {
-          std::cerr << "  * Error : Unable to create temp "
-                    << "directory for signing workaround"
-                    << std::endl;
+          exit(1);
+      }
+    }
+    std::string tmpDir = std::string(tmpDirCstr);
+    std::string tmpFile = tmpDir+"/"+filename;
+    const auto runCommand = [&](const std::string& command, const std::string& errMsg)
+    {
+      if( systemPrint( command ) != 0 )
+      {
+          std::cerr << errMsg << std::endl;
           if( isArm )
           {
               exit(1);
           }
       }
-      std::string tmpDir = std::string(tmpDirCstr);
-      std::string tmpFile = tmpDir+"/"+filename;
-      const auto runCommand = [&](const std::string& command, const std::string& errMsg)
-      {
-          if( systemPrint( command ) != 0 )
-          {
-              std::cerr << errMsg << std::endl;
-              if( isArm )
-              {
-                  exit(1);
-              }
-          }
-      };
-      std::stringstream err, cmd;
-      cmd << "cp -p \"" << bin << "\" \"" << tmpFile << "\"";
-      err << "  * Error : An error occurred copying " << bin
-          << " to " << tmpDir;
-      runCommand(cmd.str(), err.str());
+    };
+    std::stringstream err, cmd;
+    cmd << "cp -p \"" << bin << "\" \"" << tmpFile << "\"";
+    err << "  * Error : An error occurred copying " << bin
+        << " to " << tmpDir;
+    runCommand(cmd.str(), err.str());
 
-      cmd << "mv -f \"" << tmpFile << "\" \"" << bin << "\"";
-      err << "  * Error : An error occurred moving " << tmpFile
-          << " to " << bin;
-      runCommand(cmd.str(), err.str());
+    cmd << "mv -f \"" << tmpFile << "\" \"" << bin << "\"";
+    err << "  * Error : An error occurred moving " << tmpFile
+        << " to " << bin;
+    runCommand(cmd.str(), err.str());
 
-      cmd << "rm -rf \"" << tmpDir << "\"";
-      systemPrint(cmd.str());
-      err << "  * Error : An error occurred while applying "
-          << "ad-hoc signature to " << bin;
-      runCommand(signCommand, err.str());
+    cmd << "rm -rf \"" << tmpDir << "\"";
+    systemPrint(cmd.str());
+    err << "  * Error : An error occurred while applying "
+        << "ad-hoc signature to " << bin;
+    runCommand(signCommand, err.str());
+
+    return true;
   }
+  return false;
 }
 
 

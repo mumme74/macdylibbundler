@@ -102,11 +102,12 @@ int main (int argc, const char * argv[])
     args.parse(argc, argv);
 
     Tools::InstallName::initDefaults(
-      Settings::installNameToolCmd(),
-      Settings::verbose());
+    //  Settings::installNameToolCmd(),
+    "",  Settings::verbose());
 
     Tools::OTool::initDefaults(
-      Settings::otoolCmd(), Settings::verbose());
+      //Settings::otoolCmd(),
+      "",Settings::verbose());
 
     auto amount = Settings::srcFiles().size();
     if(!Settings::bundleLibs() && amount < 1)

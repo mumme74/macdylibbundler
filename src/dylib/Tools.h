@@ -76,6 +76,12 @@ public:
   /// Change rpath path name
   void rpath(PathRef from, PathRef to, PathRef bin) const;
 private:
+  void changeExternal(PathRef oldPath, PathRef newPath, PathRef bin) const;
+  void rpathExternal(PathRef from, PathRef to, PathRef bin) const;
+  void idExternal(PathRef id, PathRef bin) const;
+  void deleteRpathExternal(PathRef rpath, PathRef bin) const;
+  void addRPathExternal(PathRef rpath, PathRef bin) const;
+
   static std::string defaultCmd;
   static bool defaultVerbosity;
 };
@@ -91,6 +97,7 @@ public:
   std::vector<Path> rpaths, dependencies;
 
 private:
+  bool scanBinaryExternal(PathRef bin);
   static std::string defaultCmd;
   static bool defaultVerbosity;
 };
