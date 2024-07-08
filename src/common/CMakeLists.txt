@@ -7,10 +7,8 @@ target_sources(
     Common.cpp
     Types.cpp
     Tools.cpp
-    MachO.cpp
   PUBLIC
     Common.h
     Types.h
     Tools.h
-    MachO.h
 )

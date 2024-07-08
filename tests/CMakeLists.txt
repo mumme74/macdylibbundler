@@ -40,8 +40,18 @@ target_include_directories(
 add_test(NAME commontest COMMAND $<TARGET_FILE:commontest>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# macho lib
+add_executable(machotest test_MachO.cpp)
+target_link_libraries(machotest gtest_main gmock_main common macho)
+target_include_directories(
+  machotest PUBLIC
+    ${CMAKE_SOURCE_DIR}/src/macholib
+    ${GTEST_DIR}/googlemock/include
+)
+add_test(NAME machotest COMMAND $<TARGET_FILE:machotest>
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 add_custom_command(
-  TARGET commontest PRE_BUILD
+  TARGET machotest PRE_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
       ${CMAKE_SOURCE_DIR}/tests/testdata
       ${CMAKE_BINARY_DIR}/tests/testdata
