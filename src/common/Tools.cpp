@@ -289,4 +289,102 @@ OTool::scanBinary(PathRef bin)
   return true;
 }
 
+// ----------------------------------------------------
+
+Codesign::Codesign(
+  std::string_view cmd, bool verbose,
+  std::string cmdLineOptions
+) : Base(cmd, verbose)
+  , m_cmdLineOptions{
+      cmdLineOptions.size() ? cmdLineOptions : defaultCmdLineOptions}
+{}
+
+Codesign::Codesign()
+  : Base(defaultCmd, defaultVerbosity)
+{}
+
+void
+Codesign::initDefaults(
+    std::string_view cmd, bool verbose,
+    std::string cmdLineOptions)
+{
+  if (cmdLineOptions.size())
+    defaultCmdLineOptions = cmdLineOptions;
+  defaultCmd = cmd;
+  defaultVerbosity = verbose;
+}
+
+std::string Codesign::defaultCmdLineOptions =
+  "--force --deep --preserve-metadata=entitlements"
+  ",requirements,flags,runtime --sign - ";
+std::string Codesign::defaultCmd = "codesign";
+bool Codesign::defaultVerbosity = false;
+
+bool
+Codesign::sign(PathRef bin) const
+{
+  if (m_verbose)
+      std::cout << "Signing '" << bin << "'" << std::endl;
+
+  std::stringstream signCmd;
+  signCmd << m_cmd << " " << m_cmdLineOptions << " " << bin;
+  auto signCommand = signCmd.str();
+
+  if (systemPrint(signCommand) != 0 ) {
+      // If the codesigning fails, it may be a bug in Apple's codesign utility.
+      // A known workaround is to copy the file to another inode, then move it back
+      // erasing the previous file. Then sign again.
+      std::cerr << "  * Error : An error occurred while applying "
+                << "ad-hoc signature to " << bin
+                << ". Attempting workaround" << std::endl;
+
+      //auto machine = system_get_output("machine");
+      //bool isArm = machine.find("arm") != std::string::npos;
+      bool isArm = false; // TODO Implement
+      auto tempDirTemplate = std::string(std::getenv("TMPDIR") +
+                              std::string("dylibbundler.XXXXXXXX"));
+      std::string filename = bin.filename();
+      char* tmpDirCstr = mkdtemp((char *)(tempDirTemplate.c_str()));
+      if( tmpDirCstr == NULL )
+      {
+          std::cerr << "  * Error : Unable to create temp "
+                    << "directory for signing workaround"
+                    << std::endl;
+          if( isArm )
+          {
+              exit(1);
+          }
+      }
+      std::string tmpDir = std::string(tmpDirCstr);
+      std::string tmpFile = tmpDir+"/"+filename;
+      const auto runCommand = [&](const std::string& command, const std::string& errMsg)
+      {
+          if( systemPrint( command ) != 0 )
+          {
+              std::cerr << errMsg << std::endl;
+              if( isArm )
+              {
+                  exit(1);
+              }
+          }
+      };
+      std::stringstream err, cmd;
+      cmd << "cp -p \"" << bin << "\" \"" << tmpFile << "\"";
+      err << "  * Error : An error occurred copying " << bin
+          << " to " << tmpDir;
+      runCommand(cmd.str(), err.str());
+
+      cmd << "mv -f \"" << tmpFile << "\" \"" << bin << "\"";
+      err << "  * Error : An error occurred moving " << tmpFile
+          << " to " << bin;
+      runCommand(cmd.str(), err.str());
+
+      cmd << "rm -rf \"" << tmpDir << "\"";
+      systemPrint(cmd.str());
+      err << "  * Error : An error occurred while applying "
+          << "ad-hoc signature to " << bin;
+      runCommand(signCommand, err.str());
+  }
+}
+
 

@@ -95,6 +95,29 @@ private:
   static bool defaultVerbosity;
 };
 
+// -----------------------------------------------------------
+
+class Codesign : public Base
+{
+public:
+  static void initDefaults(
+    std::string_view cmd, bool verbose,
+    std::string cmdLineOptions = "");
+
+  Codesign();
+  Codesign(
+    std::string_view cmd, bool verbose,
+    std::string cmdLineOptions = "");
+
+  bool sign(PathRef bin) const;
+
+private:
+  std::string m_cmdLineOptions;
+  static std::string defaultCmdLineOptions;
+  static std::string defaultCmd;
+  static bool defaultVerbosity;
+};
+
 } // namespace Tools
 
 #endif
