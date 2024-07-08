@@ -75,10 +75,9 @@ Base::runAndGetOutput(
   }
 
   char buf[2048] = {0};
-  size_t n, read =0;
+  size_t n;
   while ((n = fread(buf, 1, sizeof(buf)-1, fp)) != 0) {
     buf[n] = 0;
-    read += n;
     ss << buf;
   }
 
@@ -485,14 +484,14 @@ OTool::scanBinaryExternal(PathRef bin)
     case RPath: {
       std::smatch sm;
       if (std::regex_search(line, sm, reRath)) {
-        rpaths.emplace_back(sm[1]);
+        rpaths.emplace_back(Path(sm[1].str()));
         st = Search;
       }
     } break;
     case Dep: {
       std::smatch sm;
       if (std::regex_search(line, sm, reDep)) {
-        dependencies.emplace_back(sm[1]);
+        dependencies.emplace_back(Path(sm[1].str()));
         st = Search;
       }
     } break;
@@ -544,7 +543,7 @@ Codesign::sign(PathRef bin) const
   auto signCommand = signCmd.str();
 
   if (systemPrint(signCommand) != 0 ) {
-    // If the codesigning fails, it may be a bug in Apple's codesign utility.
+   /* // If the codesigning fails, it may be a bug in Apple's codesign utility.
     // A known workaround is to copy the file to another inode, then move it back
     // erasing the previous file. Then sign again.
     std::cerr << "  * Error : An error occurred while applying "
@@ -556,7 +555,7 @@ Codesign::sign(PathRef bin) const
     bool isArm = false; // TODO Implement
     auto tempDirTemplate = std::string(std::getenv("TMPDIR") +
                             std::string("dylibbundler.XXXXXXXX"));
-    std::string filename = bin.filename();
+    std::string filename = bin.filename().string();
     char* tmpDirCstr = mkdtemp((char *)(tempDirTemplate.c_str()));
     if( tmpDirCstr == NULL )
     {
@@ -596,7 +595,7 @@ Codesign::sign(PathRef bin) const
     systemPrint(cmd.str());
     err << "  * Error : An error occurred while applying "
         << "ad-hoc signature to " << bin;
-    runCommand(signCommand, err.str());
+    runCommand(signCommand, err.str());*/
 
     return true;
   }

@@ -98,7 +98,7 @@ DylibBundler::isRpath(PathRef path)
     return fn == "@rpath" || fn == "@loader_path";
 }
 
-std::string
+Path
 DylibBundler::searchFilenameInRPaths(
     PathRef rpath_file,
     PathRef dependent_file
@@ -157,8 +157,8 @@ DylibBundler::searchFilenameInRPaths(
             std::cerr << "\n/!\\ WARNING : can't get path for '"
                       << rpath_file << "'\n"
                       << "Consider adding dir to search path as a switch, ie: -s=../dir1 -s=dir2/\n";
-            auto dir = getUserInputDirForFile(suffix);
-            fullpath = std::string(dir) + suffix;
+            auto dir = getUserInputDirForFile(Path(suffix));
+            fullpath = dir.string() + suffix;
             std::error_code err;
             auto canonical = fs::canonical(fullpath, err);
             if (!err)
@@ -178,12 +178,12 @@ DylibBundler::fixRPathsOnFile(
     if (Settings::createAppBundle()) return; // don't change @rpath on app bundles
     std::vector<std::string> rpaths_to_fix;
 
-    if ((m_dep_state[file_to_fix] & RPathsChanged) != 0) return;
+    if ((m_dep_state[file_to_fix.string()] & RPathsChanged) != 0) return;
 
     for (const auto& pair : m_rpaths_per_file){
         if (pair.first == original_file) {
             for (const auto& rpath : pair.second)
-                rpaths_to_fix.emplace_back(rpath);
+                rpaths_to_fix.emplace_back(rpath.string());
             break;
         }
     }
@@ -191,9 +191,9 @@ DylibBundler::fixRPathsOnFile(
     Tools::InstallName installTool;
     for (const auto& rpath : rpaths_to_fix) {
         installTool.rpath(
-            rpath, Settings::inside_lib_path(), file_to_fix);
+            Path(rpath), Settings::inside_lib_path(), file_to_fix);
     }
-    m_dep_state[file_to_fix] |= RPathsChanged;
+    m_dep_state[file_to_fix.string()] |= RPathsChanged;
 }
 
 void
@@ -217,7 +217,7 @@ DylibBundler::addDependency(PathRef path, PathRef file)
 
     if (!in_deps) {
         m_deps.push_back(dep);
-        m_deps_per_file[dep.getInstallPath()]
+        m_deps_per_file[dep.getInstallPath().string()]
             .push_back(m_deps.size()-1);
     }
 }
@@ -338,8 +338,8 @@ DylibBundler::toJson(std::string_view srcFile) const
     }
 
     auto root = std::make_unique<Object>(ObjInitializer{
-        {"working_dir", String(cwd)},
-        {"app_path", String(appDir)},
+        {"working_dir", String(cwd.string())},
+        {"app_path", String(appDir.string())},
         {"files_to_fix", std::move(srcFiles)},
         {"src_files", src_files}
     });
@@ -359,7 +359,7 @@ DylibBundler::fixPathsInBinAndCodesign(const Json::Array* files)
                     << std::endl;
                 throw msg.str();
             }
-            collectDependencies(file->asString()->vlu(), false);
+            collectDependencies(Path(file->asString()->vlu()), false);
         }
         collectSubDependencies();
 
@@ -428,13 +428,13 @@ DylibBundler::fixupBinary(PathRef src, PathRef dest, bool isSubDependency)
         copyFile(src, dest); // to set write permission or move
         m_dep_state[dest.string()] |= Copied;
     }
-    changeLibPathsOnFile(dest.string());
-    fixRPathsOnFile(src.string(), dest.string());
+    changeLibPathsOnFile(dest);
+    fixRPathsOnFile(src, dest);
 
     if ((m_dep_state[dest.string()] & Codesigned) == 0 &&
         Settings::canCodesign()
     ) {
-        adhocCodeSign(dest.string());
+        adhocCodeSign(dest);
         m_dep_state[dest.string()] |= Codesigned;
     }
 
@@ -516,7 +516,7 @@ void mkAppBundleTemplate() {
 
     // not sure if its needed, for old version macs
     std::ofstream pkgInfo;
-    pkgInfo.open(cont / "Pkginfo");
+    pkgInfo.open((cont / "Pkginfo").string());
     pkgInfo << "APPL????";
     pkgInfo.close();
 
@@ -531,7 +531,7 @@ void mkInfoPlist() {
     std::stringstream plist;
     if (!Settings::infoPlist().empty()) {
         std::ifstream infoPlist;
-        infoPlist.open(Settings::infoPlist());
+        infoPlist.open(Settings::infoPlist().string());
         plist << infoPlist.rdbuf();
         infoPlist.close();
     } else {
@@ -559,7 +559,7 @@ void mkInfoPlist() {
     }
 
     std::ofstream infoPlist;
-    infoPlist.open(Settings::appBundleContentsDir() / "Info.plist");
+    infoPlist.open((Settings::appBundleContentsDir() / "Info.plist").string());
     infoPlist << plist.str();
     infoPlist.close();
 }

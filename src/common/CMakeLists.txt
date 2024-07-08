@@ -9,4 +9,5 @@ target_sources(
   PUBLIC
     Common.h
     Types.h
+    WinPort.h
 )

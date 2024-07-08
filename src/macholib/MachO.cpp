@@ -64,7 +64,7 @@ MachO::FiletypeStr(FileType type)
   case MH_KEXT_BUNDLE:  return "MH_KEXT_BUNDLE";
   }
   static char buf[40] = {0};
-  sprintf(buf, "MH_FILETYPE_UNKNOWN (%2x)", (uint32_t)type);
+  snprintf(buf, 40, "MH_FILETYPE_UNKNOWN (%2x)", (uint32_t)type);
   return buf;
 }
 
@@ -101,7 +101,7 @@ MachO::FlagsStr(Flags flag)
   case MH_APP_EXTENSION_SAFE:       return "MH_APP_EXTENSION_SAFE";
   }
   static char buf[40] = {0};
-  sprintf(buf, "MH_FLAG_UNKOWN (%2x)", (uint32_t)flag);
+  snprintf(buf, 40, "MH_FLAG_UNKOWN (%2x)", (uint32_t)flag);
   return buf;
 }
 
@@ -125,7 +125,7 @@ MachO::CpuTypeStr(CpuType type)
   case MH_POWERPC64: return "MH_POWERPC64";
   }
   static char buf[40] = {0};
-  sprintf(buf, "MH_CPU_UNKOWN (%2x)", (uint32_t)type);
+  snprintf(buf, 40, "MH_CPU_UNKOWN (%2x)", (uint32_t)type);
   return buf;
 }
 
@@ -187,7 +187,7 @@ MachO::LoadCmdStr(LoadCmds cmd)
   case LC_BUILD_VERSION:             return "LC_BUILD_VERSION";
   }
   static char buf[40] = {0};
-  sprintf(buf, "LC_UNKNOWN (0x%x)", cmd);
+  snprintf(buf, 40, "LC_UNKNOWN (0x%x)", cmd);
   return buf;
 }
 
@@ -200,7 +200,7 @@ MachO::ToolsStr(Tools tool)
   case TOOL_LD:    return "TOOL_LD";
   }
   static char buf[40] = {0};
-  sprintf(buf, "UNKNOWN TOOL (%2x)", (uint32_t)tool);
+  snprintf(buf, 40, "UNKNOWN TOOL (%2x)", (uint32_t)tool);
   return buf;
 }
 
@@ -214,7 +214,7 @@ MachO::PlatformsStr(Platforms platform)
   case PLATFORM_WATCH: return "PLATFORM_WATCH";
   }
   static char buf[40] = {0};
-  sprintf(buf, "UNKNOWN PLATFORM (%2x)", (uint32_t)platform);
+  snprintf(buf, 40, "UNKNOWN PLATFORM (%2x)", (uint32_t)platform);
   return buf;
 }
 
@@ -466,7 +466,7 @@ load_command_bytes::load_command_bytes(
     file.setstate(std::ios::badbit);
     return;
   } else if (file.tellg() > (int)obj.dataBegins()) {
-    auto pos = file.tellg();
+    //auto pos = file.tellg();
     std::cerr << "File malformed, load commands extends "
               << "beyond sizeofcmds.\n";
     file.setstate(std::ios::badbit);
@@ -957,7 +957,7 @@ mach_object::write(std::ofstream& file) const
     return false;
   }
   file.flush();
-  auto afterHdr = file.tellp();
+  //auto afterHdr = file.tellp();
 
   auto pos = file.tellp();
 
@@ -986,7 +986,7 @@ mach_object::write(std::ofstream& file) const
     default:;
     }
   }
-  auto afterCmds = file.tellp();
+  //auto afterCmds = file.tellp();
 
   // we should now be at segments
   file.seekp(dataBegins() + firstSegment);
@@ -1656,9 +1656,9 @@ std::string
 introspect_object::versionStr(uint32_t version) const
 {
   std::stringstream ss;
-  uint major = ((version >> 16) & 0xFFFF),
-       minor = ((version >> 8) & 0xFF),
-       micro = (version & 0xFF);
+  uint32_t major = ((version >> 16) & 0xFFFF),
+           minor = ((version >> 8) & 0xFF),
+           micro = (version & 0xFF);
   ss << major << "." << minor << "." << micro;
   return ss.str();
 }
@@ -1680,7 +1680,7 @@ introspect_object::toUUID(const char* uuid) const
   char *ptr = buf;
 
   for (size_t i = 0; i < 16; ++i) {
-    sprintf(ptr, "%02X", uuid[i] & 0xFF);
+    snprintf(ptr, 40, "%02X", uuid[i] & 0xFF);
     ptr += 2;
     switch (i) {
     case 3: case 5: case 7: case 9:
@@ -1698,7 +1698,7 @@ introspect_object::toChkSumStr(uint32_t chksum) const
   const char *sum = (char*)&chksum;
   char *ptr = buf;
   for (size_t i = 0; i < sizeof(chksum); ++i) {
-    sprintf(ptr, "%02X", sum[i]);
+    snprintf(ptr, 10, "%02X", sum[i]);
     ptr += 2;
   }
   return buf;
@@ -1726,7 +1726,7 @@ MachOLoader::MachOLoader(PathRef binPath)
   : m_binPath{binPath}
 {
   std::ifstream file;
-  file.open(binPath, std::ios::binary);
+  file.open(binPath.string(), std::ios::binary);
   auto magic = readMagic(file);
   file.seekg(file.beg);
 
@@ -1769,7 +1769,7 @@ MachOLoader::write(PathRef path, bool overwrite)
     return false;
 
   std::ofstream file;
-  file.open(path, std::ios::binary);
+  file.open(path.string(), std::ios::binary);
   if (!file)
     return false;
 

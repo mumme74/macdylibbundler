@@ -30,13 +30,15 @@ namespace std::filesystem {
 extended_path::iterator
 extended_path::findDirEntry(std::string_view endsWith) const
 {
-  return std::find_if(begin(), end(), [&](const std::string name){
+  auto ret = std::find_if(begin(), end(), [&](path p)->bool {
+    auto name = p.string();
     if (name.size() >= endsWith.size()){
       auto str = name.substr(name.size()-endsWith.size());
       return str == endsWith;
     }
     return false;
   });
+  return ret;
 }
 
 extended_path
@@ -120,7 +122,7 @@ extended_path::strip_prefix() const
 extended_path
 extended_path::end_sep() const
 {
-  std::string str{*this};
+  std::string str{this->string()};
   while (str.back() == '.')
     str = str.substr(0, str.size()-1);
   if (str.size() && str.back() != preferred_separator)
@@ -131,7 +133,7 @@ extended_path::end_sep() const
 extended_path
 extended_path::end_wo_sep() const
 {
-  std::string str{*this};
+  std::string str{this->string()};
   while (str.back() == '.')
     str = str.substr(0, str.size()-1);
   if (str.size() && str.back() == preferred_separator)
@@ -146,8 +148,9 @@ extended_path::end_name() const
   for (auto it = begin(); it != end(); ++it) {
     last = it;
   }
-  if (last != end())
-    return static_cast<extended_path>(*last);
+  if (last != end()) {
+    return extended_path{last->string()};
+  }
   return extended_path{};
 }
 

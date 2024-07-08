@@ -119,7 +119,12 @@ bool scriptLogic(
     makeDup(pipes.scriptOut(), STDOUT_FILENO);
 
     //fprintf(pipes.stdout, "Before execvpe\n");
+#ifdef __MACH__
+    extern char **environ;
+    int res = execvP(script.data(), *environ, argv);
+#else
     int res = execvpe(script.data(), argv, environ);
+#endif
     // If we get here command failed.
     // Should be replaced by script process.
     fprintf(pipes.stdout,
@@ -317,8 +322,6 @@ struct ProtocolItem {
     {}
 };
 
-const int indent = 2;
-
 Json::VluType listProtocol();
 
 const ProtocolItem protocol[] {
@@ -437,7 +440,7 @@ const ProtocolItem protocol[] {
                 obj->set("error", Json::String("Expected an array"));
             } else {
                 for (const auto& p : *args->asArray())
-                    Settings::addSearchPath(p->asString()->vlu());
+                    Settings::addSearchPath(Path(p->asString()->vlu()));
                 obj->set(cmd, Json::Bool(true));
             }
         }

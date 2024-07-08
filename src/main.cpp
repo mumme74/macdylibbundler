@@ -53,14 +53,14 @@ std::string installPath = "";
 
 void showHelp();
 
-ArgParser args {
+ArgParser args{
   {"x","fix-file", "file to fix (executable or app plug-in)", Settings::addFileToFix, ArgItem::ReqVluString},
   {"a","app", "app bundle name, create a app bundle with this name (default name is -x name)",
     [](std::string vlu){ vlu.empty() ? Settings::setCreateAppBundle(true): Settings::setAppBundlePath(vlu);}
   },
 #ifdef USE_SCRIPTS
   {nullptr, "script","run this custom python script after bundle is complete, and after default scripts are runned",
-    Settings::setAppBundleScript, ArgItem::ReqVluString
+    [](std::string vlu){ Settings::setAppBundleScript(Path(vlu));}
   },
   {nullptr, "no-scripts","Prevent app bundle scripts from running",Settings::preventScripts},
   {nullptr, "only-scripts","Don't do anything more than running scripts",Settings::setOnlyRunScripts},
@@ -72,12 +72,16 @@ ArgParser args {
   {"p","install-path","'inner' path of bundled libraries (usually relative to executable, by default '@executable_path/../libs/')",
    Settings::set_inside_lib_path, ArgItem::ReqVluString
   },
-  {"s","search-path","Directory to add to list of locations searched",Settings::addSearchPath, ArgItem::ReqVluString},
+  {"s","search-path","Directory to add to list of locations searched",
+    [](std::string vlu){ Settings::addSearchPath(Path(vlu)); }
+  },
   {"of","overwrite-files","allow overwriting files in output directory",Settings::setCanOverwriteFiles},
   {"od","overwrite-dir","totally overwrite output directory if it already exists. implies --create-dir", Settings::setCanOverwriteDir},
   {"cd","create-dir","creates output directory if necessary",Settings::setCanCreateDir},
   {"ns","no-codesign","disables ad-hoc codesigning",Settings::setCanCodesign, ArgItem::VluFalse},
-  {"i","ignore","Location to ignore (will ignore libraries in this directory)", Settings::ignore_prefix,ArgItem::ReqVluString},
+  {"i","ignore","Location to ignore (will ignore libraries in this directory)",
+    [](std::string vlu) { Settings::ignore_prefix(Path(vlu)); }
+  },
   {"pt","prefix-tools","'prefix' otool and install_name_tool with prefix (for cross compilation)", Settings::setPrefixTools,ArgItem::ReqVluString},
   {nullptr, "otool-path","give the path to otool or llvm-otool, useful when tools not in path", Settings::setOToolPath,ArgItem::ReqVluString},
   {nullptr, "install-name-tool-path","absolute path to install_name_tool, useful when not in path",Settings::setInstallNameToolPath,ArgItem::ReqVluString},

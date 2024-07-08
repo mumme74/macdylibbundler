@@ -547,7 +547,7 @@ Number::Number(int vlu, const VluBase* parent) :
   m_vlu.numVlu = static_cast<float>(vlu);
 }
 
-Number::Number(uint vlu, const VluBase* parent) :
+Number::Number(uint32_t vlu, const VluBase* parent) :
   VluBase(NumberType, parent)
 {
   m_vlu.numVlu = static_cast<float>(vlu);
@@ -735,7 +735,7 @@ Array::toString() const
 std::stringstream
 Array::serialize(int indent /* = 0 */, int depth /*= 0*/) const
 {
-  uint iter = 0;
+  uint32_t iter = 0;
   std::stringstream out;
   auto ind = createIndent(indent, depth);
   out << ind << "[";
@@ -852,7 +852,7 @@ Object::toString() const
 std::stringstream
 Object::serialize(int indent, int depth) const
 {
-  uint iter = 0;
+  uint32_t iter = 0;
   std::stringstream out;
   auto ind = createIndent(indent, depth);
   out << ind << "{";

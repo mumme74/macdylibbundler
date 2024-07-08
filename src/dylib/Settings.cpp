@@ -30,7 +30,11 @@ THE SOFTWARE.
 #include <algorithm>
 #include <regex>
 #include <unistd.h>
-#include <sys/wait.h>
+#ifdef _WIN32
+# include "WinPort.h"
+#else
+# include <sys/wait.h>
+#endif
 #include "Settings.h"
 #include "Common.h"
 #include "Utils.h"
@@ -63,7 +67,7 @@ void initSearchPaths(){
         while(std::getline(ss, item, ':'))
         {
             if (item[ item.size()-1 ] != '/') item += "/";
-            Settings::addSearchPath(item);
+            Settings::addSearchPath(Path(item));
         }
     }
 }
@@ -85,7 +89,7 @@ void initAppBundleScripts(int argc, const char* argv[]) {
             { continue; } // skip
 
             if (isExecutable(Path(entry.path()))) {
-                Settings::setAppBundleScript(entry.path().string());
+                Settings::setAppBundleScript(entry.path());
             }
         }
     }
@@ -255,7 +259,7 @@ void setCreateAppBundle(bool on) {
 
 Path app_bundle_path;
 std::string appBundleName() {
-    return appBundlePath().end_name();
+    return appBundlePath().end_name().string();
 }
 Path appBundlePath() {
     auto path = app_bundle_path.empty() ?
@@ -343,7 +347,7 @@ Path inside_lib_path(){
             dir = dir.substr(2);
         else if (dir[0] == '/')
             dir = dir.substr(1);
-        return std::string("@executable_path/") + dir + "/";
+        return Path(std::string("@executable_path/") + dir + "/");
     }
     return inside_path;
 }
@@ -355,7 +359,7 @@ Path inside_framework_path() {
     if (createAppBundle())
         return Path("@rpath/Frameworks/");
     auto path = stripLastSlash(inside_lib_path().string());
-    return path.substr(0, path.find("/")) + "/Frameworks/";
+    return Path(path.substr(0, path.find("/")) + "/Frameworks/");
 }
 
 std::vector<Path> prefixes_to_ignore;
@@ -374,9 +378,9 @@ bool isSystemLibrary(PathRef prefix)
 
 bool isPrefixIgnored(PathRef prefix)
 {
-    std::string sPre = prefix;
+    std::string sPre = prefix.string();
     for(const auto& pref : prefixes_to_ignore) {
-        std::string sP = pref;
+        std::string sP = pref.string();
         if((sP.size() <= sPre.size()) &&
            (sP == sPre.substr(0, sP.size()))
         ) {
@@ -415,9 +419,9 @@ bool bundle_frameworks = false;
 bool bundleFrameworks() { return bundle_frameworks; }
 void setBundleFrameworks(bool on) { bundle_frameworks = on; }
 Path frameworkDir() {
-    return (bundle_frameworks ?
-        appBundleContentsDir() / "Frameworks" / "" :
-            Path(destFolder())).string();
+    return (bundle_frameworks
+            ?   appBundleContentsDir() / "Frameworks" / ""
+            :   Path(destFolder()));
 }
 
 std::unique_ptr<Json::Object> toJson() {
@@ -433,15 +437,15 @@ std::unique_ptr<Json::Object> toJson() {
         {"can_codesign", Bool(canCodesign())},
         {"bundle_libs", Bool(bundleLibs())},
         {"bundle_frameworks", Bool(bundleFrameworks())},
-        {"framework_dir", String(frameworkDir())},
+        {"framework_dir", String(frameworkDir().string())},
         {"create_app_bundle", Bool(createAppBundle())},
         {"verbose", Bool(verbose())},
-        {"lib_folder", String(destFolder())},
+        {"lib_folder", String(destFolder().string())},
         {"prefix_tools", String(prefixTools())},
-        {"app_bundle_contents_dir", String(appBundleContentsDir())},
-        {"inside_lib_path", String(inside_lib_path())},
-        {"inside_framework_path", String(inside_framework_path())},
-        {"app_bundle_exec_dir", String(appBundleExecDir())},
+        {"app_bundle_contents_dir", String(appBundleContentsDir().string())},
+        {"inside_lib_path", String(inside_lib_path().string())},
+        {"inside_framework_path", String(inside_framework_path().string())},
+        {"app_bundle_exec_dir", String(appBundleExecDir().string())},
         {"app_bundle_name", String(appBundleName())},
         {"search_paths", searchIn},
         {"otool_path", String(otoolCmd())},

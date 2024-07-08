@@ -189,7 +189,7 @@ namespace fs = std::filesystem;
 int writeToFile(MachO::mach_object& obj)
 {
   std::ofstream file;
-  file.open(inputs::outputFile, std::ios::out);
+  file.open(inputs::outputFile.string(), std::ios::out);
   if (file.bad()) {
     std::cerr << "Failed to open file '" << inputs::outputFile << "'\n";
   } else if (obj.write(file)) {
@@ -246,7 +246,7 @@ int runAction(MachO::mach_object& obj, inputs::Actions action)
       return 1;
     }
     std::ofstream file;
-    file.open(inputs::outputFile, std::ios::out);
+    file.open(inputs::outputFile.string(), std::ios::out);
     if (file.bad()) {
       std::cerr << "Failed to open file '" << inputs::outputFile << "'\n";
       return 2;
@@ -259,7 +259,7 @@ int runAction(MachO::mach_object& obj, inputs::Actions action)
       std::cerr << "Must give both path to look for and to change to.\n";
       return 2;
     }
-    if (obj.changeRPath(inputs::oldPath, inputs::newPath))
+    if (obj.changeRPath(Path(inputs::oldPath), Path(inputs::newPath)))
       return writeToFile(obj);
     std::cerr << "Failed to change path, does it exist in this binary?\n";
     return 2;
@@ -269,7 +269,7 @@ int runAction(MachO::mach_object& obj, inputs::Actions action)
       std::cerr << "Must give both path to look for and to change to.\n";
       return 2;
     }
-    if (obj.changeDylibPaths(inputs::oldPath, inputs::newPath))
+    if (obj.changeDylibPaths(Path(inputs::oldPath), Path(inputs::newPath)))
       return writeToFile(obj);
 
     std::cerr << "Failed to change path, does it exist in this binary?\n";
@@ -317,7 +317,7 @@ int main(int argc, const char *argv[])
   }
 
   std::ifstream file;
-  file.open(inputs::inputFile);
+  file.open(inputs::inputFile.string(), std::ios::binary);
   if (!file) {
     std::cerr << "Failed to open input file."
               << "" << strerror(errno) << "\n";

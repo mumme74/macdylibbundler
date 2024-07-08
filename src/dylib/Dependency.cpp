@@ -70,7 +70,7 @@ void cleanupFramwork(
     std::vector<std::string> k{"Current"};
     auto curPath = frameworkPath / "Versions" / "Current";
     if (fs::is_symlink(curPath, err))
-        k.push_back(fs::read_symlink(curPath).c_str());
+        k.push_back(fs::read_symlink(curPath).string());
     clean(frameworkPath / "Versions", k);
     // inside the current versions dir
     clean(frameworkPath / "Versions" / k.back(), keep);
@@ -105,7 +105,7 @@ Dependency::Dependency(
     }
 
     if (fs::is_symlink(m_canonical_file))
-        addSymlink(path.string());
+        addSymlink(path);
 
     m_prefix = m_framework
                 ? m_canonical_file.before(".framework")
@@ -313,7 +313,7 @@ Dependency::copyMyself() const
 
     if (m_framework)
         cleanupFramwork(to,
-            std::vector<std::string>{getCanonical().filename()});
+            std::vector<std::string>{getCanonical().filename().string()});
 
     // Fix the lib's inner name
     Tools::InstallName installTool;
@@ -350,14 +350,14 @@ Dependency::toJson() const
 
     Array links{};
     for (const auto& link : m_symlinks)
-        links.push(String(link));
+        links.push(String(link.string()));
 
     auto obj = std::make_unique<Object>(ObjInitializer{
-        {"original_file", String{m_original_file}},
-        {"canonical_file", String{m_canonical_file}},
-        {"install_path", String{getInstallPath()}},
-        {"inner_path", String{getInnerPath()}},
-        {"prefix", String{m_prefix}},
+        {"original_file", String{m_original_file.string()}},
+        {"canonical_file", String{m_canonical_file.string()}},
+        {"install_path", String{getInstallPath().string()}},
+        {"inner_path", String{getInnerPath().string()}},
+        {"prefix", String{m_prefix.string()}},
         {"symlinks", links},
         {"is_framework", Bool(m_framework)},
         {"framework_name", String{getFrameworkName()}},

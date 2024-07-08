@@ -50,7 +50,7 @@ public:
     /// @param rpath_file The file that has the rpath to look for
     /// @param dependent_file The dependency we search for
     /// @return true if found
-    std::string searchFilenameInRPaths(
+    Path searchFilenameInRPaths(
       PathRef rpath_file, PathRef dependent_file);
     /// @brief true if any dependency is a framework dependency
     bool hasFrameworkDep();

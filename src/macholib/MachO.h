@@ -27,6 +27,7 @@ THE SOFTWARE.
 
 #include <vector>
 #include <fstream>
+#include <sstream>
 #include <stdint.h>
 #include "Common.h"
 #include "Types.h"
@@ -543,8 +544,9 @@ protected:
   uint32_t m_cmdsize;
 };
 
-struct load_command_bytes : load_command
+class load_command_bytes : public load_command
 {
+public:
   load_command_bytes();
   load_command_bytes(uint32_t cmd, uint32_t cmdsize);
   load_command_bytes(std::ifstream& file, mach_object& owner);
@@ -937,7 +939,7 @@ class encryption_info_command_64 : public encryption_info_command
 public:
   encryption_info_command_64(const load_command_bytes& cmd, const mach_object& obj)
     : encryption_info_command{cmd, obj}
-  {}
+  {(void)m_pad;}
 private:
   uint32_t m_pad; // only padding to make it to multiple of 8
 };

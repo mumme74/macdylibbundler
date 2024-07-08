@@ -170,7 +170,7 @@ class Number : public VluBase {
 public:
   Number(float vlu, const VluBase* parent = nullptr);
   Number(int vlu, const VluBase* parent = nullptr);
-  Number(uint vlu, const VluBase* parent = nullptr);
+  Number(uint32_t vlu, const VluBase* parent = nullptr);
   Number(const Number& other);
   ~Number();
   Number& operator= (const Number& other);

@@ -32,16 +32,19 @@ namespace std::filesystem {
 class extended_path : public path {
 public:
   extended_path() = default;
-  extended_path(const extended_path& _path) = default;
+  extended_path(const extended_path& _path) :
+    path{_path}
+  {}
   extended_path(extended_path&& _path) :
     path(std::move(_path))
   {}
-  extended_path(std::string&& _path):
+ /* extended_path(std::string&& _path):
     path(std::move(_path))
   {}
   extended_path(const std::string& _path):
     path(_path)
-  {}
+  {}*/
+  extended_path(const path& _path): path{_path} {}
   ~extended_path() = default;
 
   extended_path& operator=(const extended_path &other)

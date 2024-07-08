@@ -179,7 +179,7 @@ Path getUserInputDirForFile(PathRef filename)
                       << "MAY NOT CORRECTLY HANDLE THIS DEPENDENCY: "
                       << "Manually check the executable with '"
                       << Settings::otoolCmd() << " -L'" << std::endl;
-            Settings::addSearchPath(prefix);
+            Settings::addSearchPath(Path(prefix));
             return Path(prefix);
         }
     }
@@ -243,7 +243,7 @@ void adhocCodeSign(PathRef file)
         // If the codesigning fails, it may be a bug in Apple's codesign utility.
         // A known workaround is to copy the file to another inode, then move it back
         // erasing the previous file. Then sign again.
-        std::cerr << "  * Error : An error occurred while applying "
+        /*std::cerr << "  * Error : An error occurred while applying "
                   << "ad-hoc signature to " << file
                   << ". Attempting workaround" << std::endl;
 
@@ -251,7 +251,7 @@ void adhocCodeSign(PathRef file)
         bool isArm = machine.find("arm") != std::string::npos;
         auto tempDirTemplate = std::string(std::getenv("TMPDIR") +
                                std::string("dylibbundler.XXXXXXXX"));
-        std::string filename = fs::path(file).filename();
+        std::string filename = fs::path(file).filename().string();
         char* tmpDirCstr = mkdtemp((char *)(tempDirTemplate.c_str()));
         if( tmpDirCstr == NULL )
         {
@@ -291,7 +291,7 @@ void adhocCodeSign(PathRef file)
         systemp(cmd.str());
         err << "  * Error : An error occurred while applying "
             << "ad-hoc signature to " << file;
-        runCommand(signCommand, err.str());
+        runCommand(signCommand, err.str());*/
     }
 }
 
