@@ -217,8 +217,8 @@ TEST(Tools_OTool, verbose) {
   EXPECT_EQ(mock.calls[0].first,
     std::string("testOtool -l \"\"") + mock.filename.string() + "\"\"");
   EXPECT_EQ(mock.calls[0].second, "r");
-  EXPECT_THAT(testing::internal::GetCapturedStdout(),
-    MatchesRegex(std::string("\\s+testOtool -l \"\"") + mock.filename.string() + "\"\".*"));
+  EXPECT_EQ(testing::internal::GetCapturedStdout(),
+    std::string("    testOtool -l \"\"") + mock.filename.string() + "\"\"\n");
 }
 
 TEST(Tools_OTool, paths) {

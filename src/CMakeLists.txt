@@ -8,6 +8,12 @@ add_subdirectory(argparser)
 target_sources(dylibbundler PRIVATE
   main.cpp
 )
+target_include_directories(
+  dylibbundler
+  PUBLIC ${CMAKE_SOURCE_DIR}/src/common
+  PUBLIC ${CMAKE_SOURCE_DIR}/src/argparser
+  PUBLIC ${CMAKE_SOURCE_DIR}/src/macholib
+)
 
 # macho lib dependencies
 target_link_libraries(

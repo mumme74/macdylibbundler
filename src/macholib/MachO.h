@@ -333,8 +333,10 @@ std::ifstream& readInto(std::ifstream& file, T* dest)
 {
   if (file.fail()) return file;
   std::streamsize nBytes = sizeof(T);
-  if (file.readsome((char*)dest, nBytes) != nBytes) {
+
+  if (file.read((char*)dest, nBytes).gcount() != nBytes) {
     file.setstate(std::ios::failbit);
+    std::cerr << "Failed to read file " << strerror(errno) << "\n";
   }
   return file;
 }

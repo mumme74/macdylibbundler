@@ -425,10 +425,11 @@ OTool::scanBinary(PathRef bin)
       MachO::LC_LOAD_WEAK_DYLIB
     };
 
-    for (const auto& cmd : obj.filterCmds(filterIn)) {
+    for (const MachO::load_command_bytes* cmd : obj.filterCmds(filterIn)) {
+      auto bytes = cmd->bytes.get();
       MachO::dylib_command dylib{*cmd, obj};
       dependencies.emplace_back(
-        dylib.name().str(cmd->bytes.get()));
+        dylib.name().str(bytes));
     }
 
     for (const auto& path : obj.rpaths())

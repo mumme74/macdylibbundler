@@ -154,7 +154,8 @@ Path getUserInputDirForFile(PathRef filename)
         exitMsg(msg.str());
     }
 
-    while (true)
+    int i = 10;
+    while (i--)
     {
         std::cout << "Please specify the directory where this "
                   << "library is located (or enter 'quit' to abort): ";
@@ -183,6 +184,7 @@ Path getUserInputDirForFile(PathRef filename)
             return Path(prefix);
         }
     }
+    return Path{};
 }
 
 void createFolder(PathRef folder) {

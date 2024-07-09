@@ -55,6 +55,8 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_directory
       ${CMAKE_SOURCE_DIR}/tests/testdata
       ${CMAKE_BINARY_DIR}/tests/testdata
+      ${CMAKE_SOURCE_DIR}/tests/testbinaries
+      ${CMAKE_BINARY_DIR}/tests/testbinaries
 )
 
 # dylib

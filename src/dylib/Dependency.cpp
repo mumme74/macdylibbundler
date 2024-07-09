@@ -109,10 +109,11 @@ Dependency::Dependency(
 
     m_prefix = m_framework
                 ? m_canonical_file.before(".framework")
-                : m_canonical_file;
+                : m_canonical_file.parent_path();
 
     // check if this dependency is in /usr/lib, /System/Library, or in ignored list
-    if (Settings::blacklistedPath(m_prefix)) return;
+    if (Settings::blacklistedPath(m_prefix) || isExecutable) 
+        return;
 
     if (!findPrefix(path, dependent_file))
         std::cerr << "/!\\ WARNING : Cannot resolve path '"
@@ -127,12 +128,19 @@ Dependency::findPrefix(PathRef path, PathRef dependent_file) {
         return true;
     }
 
-    const auto canonical_name = m_canonical_file.end_name();
+    auto fwName = getFrameworkName() + ".framework";
+    if (m_framework && fs::is_directory(m_prefix / fwName)) {
+        Settings::addSearchPath(m_prefix);
+        m_prefix /= fwName;
+        return true;
+    }
+
+    const auto canonical_name = m_canonical_file.filename();
+    
     // check if the lib is in a known location
     auto pat = fs::path(m_prefix) / canonical_name;
     if( m_prefix.empty() || !fs::exists(pat) )
     {
-        auto fwName = getFrameworkName() + ".framework";
 
         //the paths contains at least /usr/lib so if it is empty we have not initialized it
 
@@ -160,7 +168,7 @@ Dependency::findPrefix(PathRef path, PathRef dependent_file) {
             }
         }
     }
-
+    
     //If the location is still unknown, ask the user for search path
     if( !Settings::isPrefixIgnored(m_prefix) &&
         (m_prefix.empty() ||

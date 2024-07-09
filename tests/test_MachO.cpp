@@ -44,7 +44,8 @@ class MachOTest : public testing::Test
 {
 public:
   void SetUp() override {
-    auto path = fs::path(__FILE__).parent_path() / "testdata" / "libicuio.73.dylib";
+    auto path = fs::path(__FILE__).parent_path() /
+      "testbinaries" / "foolib" / "libfoo.x86-64.dylib";
     file.open(path, std::ios::binary);
     ASSERT_FALSE(file.fail());
   }
@@ -71,12 +72,8 @@ TEST_F(MachOTest, readLoadCmds) {
   EXPECT_FALSE(file.bad());
 
   auto dylibs = macho.loadDylibPaths();
-  EXPECT_EQ(dylibs.size(), 5);
-  EXPECT_EQ(dylibs[0].string(), "@executable_path/../libs/libicuuc.73.dylib");
-  EXPECT_EQ(dylibs[1].string(), "@executable_path/../libs/libicudata.73.dylib");
-  EXPECT_EQ(dylibs[2].string(), "@executable_path/../libs/libicui18n.73.dylib");
-  EXPECT_EQ(dylibs[3].string(), "/usr/lib/libSystem.B.dylib");
-  EXPECT_EQ(dylibs[4].string(), "/usr/lib/libc++.1.dylib");
+  EXPECT_EQ(dylibs.size(), 1);
+  EXPECT_EQ(dylibs[0].string(), "/usr/lib/libSystem.B.dylib");
 
 }
 
@@ -86,7 +83,7 @@ TEST_F(MachOTest, sections) {
   auto segm = macho.dataSegments();
   EXPECT_EQ(segm.size(), 3);
   EXPECT_STREQ(segm.at(0)->segname(), "__TEXT");
-  EXPECT_STREQ(segm.at(1)->segname(), "__DATA");
+  EXPECT_STREQ(segm.at(1)->segname(), "__DATA_CONST");
   EXPECT_STREQ(segm.at(2)->segname(), "__LINKEDIT");
 }
 
@@ -109,7 +106,7 @@ struct MachOWrite : ::testing::Test
 {
   void SetUp() {
     auto tests = fs::path(__FILE__).parent_path();
-    inPath = tests / "testdata/libicudata.73.dylib";
+    inPath = tests / "testbinaries" / "testprog.arm64";
     outPath = tests / "__dump";
     infile.open(inPath, std::ios::binary);
     outfile.open(outPath, std::ios::binary);
@@ -166,7 +163,8 @@ TEST_F(MachOWrite, write) {
 
 TEST(MachoIOS, readTest) {
   std::ifstream file;
-  file.open(fs::path(__FILE__).parent_path() / "testdata" / "AngryBirds2");
+  file.open(fs::path(__FILE__).parent_path() 
+    / "testbinaries" / "testprog.iphoneos");
   MachO::mach_object macho{file};
 
   auto type = macho.header64()->cputype();
@@ -174,7 +172,7 @@ TEST(MachoIOS, readTest) {
 
   EXPECT_EQ(macho.is64bits(), true);
   auto segm = macho.dataSegments();
-  EXPECT_EQ(segm.size(), 5);
+  EXPECT_EQ(segm.size(), 4);
 }
 
 // ------------------------------------------------------------
@@ -183,7 +181,8 @@ class FatMachO : public testing::Test
 {
 public:
   void SetUp() override {
-    auto path = fs::path(__FILE__).parent_path() / "testdata" / "sublime_text";
+    auto path = fs::path(__FILE__).parent_path() 
+      / "testbinaries" / "testprog.fat";
     file.open(path, std::ios::binary);
     ASSERT_EQ(file.fail(), false);
   }
@@ -219,7 +218,8 @@ class MachOIntropect : public testing::Test
 public:
   void SetUp()
   {
-    auto path = fs::path(__FILE__).parent_path() / "testdata" / "classphoto";
+    auto path = fs::path(__FILE__).parent_path() 
+      / "testbinaries" / "testprog.watchos";
     file.open(path, std::ios::binary);
     ASSERT_EQ(file.fail(), false);
 

@@ -194,6 +194,8 @@ class DeployQt():
       self.qtDir = environ['QT_PATH']
 
     self.pluginSrcDir = path.join(self.qtDir, "plugins")
+    if not path.exists(self.pluginSrcDir):
+      self.pluginSrcDir = path.join(self.qtDir, "share", "qt", "plugins")
     self.pluginsDestDir = path.join(
       self.settings['app_bundle_contents_dir'], "PlugIns")
     self.qmlDestDir = path.join(
@@ -326,7 +328,7 @@ class DeployQt():
 
     self.log("Creating qt.conf")
     with open(qtConfDir, "w") as file:
-      file.write("[Paths]\nPlugins\ imports = imports\n")
+      file.write("[Paths]\nPlugins\nimports = imports\n")
 
   def searchPaths(self)->None:
     paths = []

@@ -35,7 +35,7 @@ THE SOFTWARE.
 static uint32_t readMagic(std::ifstream& file)
 {
   uint32_t magic = 0;
-  auto n = file.readsome((char*)&magic, sizeof(magic));
+  auto n = file.read((char*)&magic, sizeof(magic)).gcount();
   if (n != sizeof(magic))
     return 0;
   return magic;
@@ -461,7 +461,7 @@ load_command_bytes::load_command_bytes(
     return;
 
   std::streamsize sz = sizeof(load_command);
-  if (file.readsome((char*)this, sz) != sz) {
+  if (file.read((char*)this, sz).gcount() != sz) {
     std::cerr << "Failed to read header of LC_CMD\n";
     file.setstate(std::ios::badbit);
     return;
@@ -478,7 +478,7 @@ load_command_bytes::load_command_bytes(
 
   sz = m_cmdsize - sz;
   bytes = std::make_unique<char[]>(sz);
-  if (file.readsome(bytes.get(), sz) != sz) {
+  if (file.read(bytes.get(), sz).gcount() != sz) {
     std::cerr << "Failed to read LC_CMD\n";
     file.setstate(std::ios::badbit);
     return;
@@ -521,12 +521,10 @@ dylib_command::dylib_command(
   , m_name{from.bytes.get(), obj}
 {
   const size_t nameOffset = lc_str::lc_STR_OFFSET; // always offset by 4 regardless of 32 or 64 bits
-  auto buf = &from.bytes.get()[nameOffset];
-  memcpy((void*)&m_timestamp,  buf,
-          sizeof(dylib_command) - sizeof(load_command) - nameOffset);
-  m_timestamp = obj.endian(m_timestamp);
-  m_current_version = obj.endian(m_current_version);
-  m_compatibility_version = obj.endian(m_compatibility_version);
+  auto buf = (uint32_t*)&from.bytes.get()[nameOffset];
+  m_timestamp = obj.endian(buf[0]);
+  m_current_version = obj.endian(buf[1]);
+  m_compatibility_version = obj.endian(buf[2]);
 }
 
 // -----------------------------------------------------------
@@ -753,7 +751,8 @@ mach_object::filterCmds(std::vector<LoadCmds> match) const
   for (auto& cmd : m_load_cmds) {
     for (const auto& m : match){
       if (cmd.cmd() == m) {
-        cmds.emplace_back(const_cast<load_command_bytes*>(&cmd));
+        auto pcmd = const_cast<load_command_bytes*>(&cmd);
+        cmds.emplace_back(pcmd);
         break;
       }
     }
@@ -1221,7 +1220,7 @@ data_segment::read_into(
   std::streamoff sz = m_filesize;
   m_bytes = std::make_unique<char[]>(sz);
 
-  if (file.readsome(m_bytes.get(), sz) != sz) {
+  if (file.read(m_bytes.get(), sz).gcount() != sz) {
     file.setstate(std::ios::badbit);
     return;
   }
